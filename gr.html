@@ -3,38 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Site com Fundo Azul</title>
+    <title>(Re)comece Aqui</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
-            background: linear-gradient(to bottom, #001f3f, #0074D9);
-            color: white;
-            font-family: Arial, sans-serif;
+            font-family: 'Playfair Display', serif;
+            background: white;
+            color: #4169E1;
         }
-        .content {
+        .container {
+            width: 80%;
+            margin: auto;
+            padding: 20px;
+        }
+        .video-player {
+            width: 100%;
+            max-width: 900px;
+            margin: auto;
+            text-align: center;
+        }
+        .video-player video {
+            width: 100%;
+            border-radius: 10px;
+        }
+        .episode-list {
+            margin-top: 30px;
+        }
+        .episode {
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
-            height: 100vh;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
         }
-        h1 {
-            font-size: 3rem;
+        .episode:hover {
+            background: #f0f0f0;
         }
-        video {
-            margin-top: 20px;
-            max-width: 90%;
-            border: 2px solid white;
+        .episode img {
+            width: 120px;
+            height: 70px;
+            border-radius: 5px;
+            margin-right: 15px;
+        }
+        .episode-info {
+            flex-grow: 1;
+        }
+        .back-button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 1rem;
+            background: #4169E1;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background: #3653b3;
         }
     </style>
+    <script>
+        function changeVideo(src, title, description) {
+            document.getElementById('main-video').src = src;
+            document.getElementById('video-title').innerText = title;
+            document.getElementById('video-description').innerText = description;
+        }
+    </script>
 </head>
 <body>
-    <div class="content">
-        <h1>Bem-vindo ao meu site!</h1>
-        <video controls>
-            <source src="video.mp4" type="video/mp4">
-            Seu navegador não suporta a reprodução de vídeos.
-        </video>
+    <div class="container">
+        <button class="back-button" onclick="window.history.back()">Voltar</button>
+        
+        <div class="video-player">
+            <h2 id="video-title">Episódio 1: Introdução</h2>
+            <video id="main-video" controls>
+                <source src="recomeceaqui1.mp4" type="video/mp4">
+                Seu navegador não suporta vídeos.
+            </video>
+            <p id="video-description">Descrição do episódio 1: Introdução ao curso (Re)comece Aqui.</p>
+        </div>
+        
+        <div class="episode-list">
+            <h3>Todos os Episódios</h3>
+            <div class="episode" onclick="changeVideo('recomeceaqui1.mp4', 'Episódio 1: Introdução', 'Descrição do episódio 1: Introdução ao curso.')">
+                <img src="thumb1.jpg" alt="Thumbnail Episódio 1">
+                <div class="episode-info">
+                    <h4>Episódio 1: Introdução</h4>
+                    <p>Descrição do episódio 1: Introdução ao curso.</p>
+                </div>
+            </div>
+            <div class="episode" onclick="changeVideo('recomeceaqui2.mp4', 'Episódio 2: O Caminho', 'Descrição do episódio 2: Explorando o caminho da fé.')">
+                <img src="thumb2.jpg" alt="Thumbnail Episódio 2">
+                <div class="episode-info">
+                    <h4>Episódio 2: O Caminho</h4>
+                    <p>Descrição do episódio 2: Explorando o caminho da fé.</p>
+                </div>
+            </div>
+            <div class="episode" onclick="changeVideo('recomeceaqui3.mp4', 'Episódio 3: A Missão', 'Descrição do episódio 3: Entendendo a missão de vida.')">
+                <img src="thumb3.jpg" alt="Thumbnail Episódio 3">
+                <div class="episode-info">
+                    <h4>Episódio 3: A Missão</h4>
+                    <p>Descrição do episódio 3: Entendendo a missão de vida.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
