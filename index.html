@@ -1,117 +1,513 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>(Re)comece Aqui</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <title>Canvas Infinito v8: Fluid</title>
     <style>
-        body {
-            margin: 0;
-            font-family: 'Playfair Display', serif;
-            background: white;
-            color: #4169E1;
+        /* --- ESTILO GERAL --- */
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #121212;
+            font-family: 'Segoe UI', sans-serif; color: #e0e0e0;
         }
-        .container {
-            width: 80%;
-            margin: auto;
-            padding: 20px;
+
+        /* SIDEBAR */
+        #sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: 60px;
+            background: #1e1e1e; border-right: 1px solid #333;
+            display: flex; flex-direction: column; align-items: center; 
+            padding-top: 20px; z-index: 2000; box-shadow: 2px 0 10px rgba(0,0,0,0.5);
         }
-        .video-player {
-            width: 100%;
-            max-width: 900px;
-            margin: auto;
-            text-align: center;
+        .tool-btn {
+            width: 40px; height: 40px; margin-bottom: 15px; border-radius: 8px;
+            border: 1px solid transparent; background: #2c2c2c; color: #fff;
+            font-size: 20px; cursor: pointer; transition: all 0.2s;
         }
-        .video-player video {
-            width: 100%;
-            border-radius: 10px;
+        .tool-btn:hover { background: #333; border-color: #555; }
+
+        /* BREADCRUMBS */
+        #breadcrumbs {
+            position: fixed; top: 15px; left: 80px; 
+            z-index: 2001; font-size: 16px; font-weight: 500; color: #666;
+            pointer-events: none;
         }
-        .episode-list {
-            margin-top: 30px;
+        .crumb {
+            pointer-events: auto; cursor: pointer; color: #888; transition: color 0.2s;
         }
-        .episode {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background 0.3s;
+        .crumb:hover { color: #bb86fc; text-decoration: underline; }
+        .crumb.active { color: #e0e0e0; cursor: default; text-decoration: none; font-weight: bold;}
+        .crumb-separator { margin: 0 8px; color: #444; }
+
+        /* VIEWPORT */
+        #viewport {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            overflow: hidden; cursor: default;
+            background-color: #121212;
+            background-image: radial-gradient(circle, #333 1px, transparent 1px);
+            background-size: 40px 40px; 
         }
-        .episode:hover {
-            background: #f0f0f0;
+        #world {
+            position: absolute; top: 0; left: 0; width: 0; height: 0;
+            overflow: visible; transform-origin: 0 0;
         }
-        .episode img {
-            width: 120px;
-            height: 70px;
-            border-radius: 5px;
-            margin-right: 15px;
+
+        /* SVG DAS LINHAS (Agora com fill: none para curvas) */
+        #connections-layer {
+            position: absolute; top: -50000px; left: -50000px; 
+            width: 100000px; height: 100000px; 
+            overflow: visible; pointer-events: none; z-index: 0;
         }
-        .episode-info {
-            flex-grow: 1;
+        /* Importante: fill: none para a curva não fechar */
+        .connector-line { 
+            fill: none; 
+            stroke: #666; 
+            stroke-width: 3px; /* Um pouco mais grossa */
+            stroke-linecap: round;
+            /* Animação suave na cor */
+            transition: stroke 0.2s;
         }
-        .back-button {
-            display: block;
-            margin: 20px auto;
-            padding: 10px 20px;
-            font-size: 1rem;
-            background: #4169E1;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
+        .connector-line:hover { stroke: #bb86fc; }
+
+        /* CARDS */
+        .card {
+            position: absolute; background: #1e1e1e; border: 1px solid #333;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); border-radius: 12px; padding: 20px;
+            user-select: none; cursor: move; min-width: 150px; z-index: 1;
+            transition: transform 0.1s, box-shadow 0.2s;
         }
-        .back-button:hover {
-            background: #3653b3;
+        .card:hover { border-color: #555; }
+        .card.dragging { border-color: #bb86fc; z-index: 1000; cursor: grabbing; }
+        /* Permite editar o texto clicando */
+        .card h2, .card p { outline: none; } 
+        .card h2 { margin: 0 0 5px 0; font-size: 1rem; color: #fff; cursor: text; }
+        .card p { margin: 0; color: #888; font-size: 0.9rem; cursor: text; }
+
+        #hud {
+            position: fixed; bottom: 20px; right: 20px;
+            background: #1e1e1e; padding: 10px 15px; border-radius: 30px; border: 1px solid #333;
+            font-size: 0.8rem; color: #666; pointer-events: none;
         }
+
+        /* MENUS */
+        #context-menu, #connection-picker {
+            display: none; position: fixed; background: #252525;
+            border: 1px solid #444; border-radius: 8px; z-index: 5000;
+        }
+        #context-menu { box-shadow: 0 5px 15px rgba(0,0,0,0.5); padding: 5px 0; min-width: 150px; }
+        .menu-item { padding: 10px 20px; cursor: pointer; color: #e0e0e0; font-size: 0.9rem; }
+        .menu-item:hover { background: #bb86fc; color: #000; }
+        
+        #connection-picker {
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            padding: 20px; border: 1px solid #bb86fc; max-height: 300px; overflow-y: auto;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8); z-index: 6000;
+        }
+        .picker-option { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; color: #e0e0e0;}
+        .picker-option:hover { background: #333; }
     </style>
-    <script>
-        function changeVideo(src, title, description) {
-            document.getElementById('main-video').src = src;
-            document.getElementById('video-title').innerText = title;
-            document.getElementById('video-description').innerText = description;
-        }
-    </script>
 </head>
 <body>
-    <div class="container">
-        <button class="back-button" onclick="window.history.back()">Voltar</button>
-        
-        <div class="video-player">
-            <h2 id="video-title">Episódio 1: Introdução</h2>
-            <video id="main-video" controls>
-                <source src="recomeceaqui1.mp4" type="video/mp4">
-                Seu navegador não suporta vídeos.
-            </video>
-            <p id="video-description">Descrição do episódio 1: Introdução ao curso (Re)comece Aqui.</p>
-        </div>
-        
-        <div class="episode-list">
-            <h3>Todos os Episódios</h3>
-            <div class="episode" onclick="changeVideo('recomeceaqui1.mp4', 'Episódio 1: Introdução', 'Descrição do episódio 1: Introdução ao curso.')">
-                <img src="thumb1.jpg" alt="Thumbnail Episódio 1">
-                <div class="episode-info">
-                    <h4>Episódio 1: Introdução</h4>
-                    <p>Descrição do episódio 1: Introdução ao curso.</p>
-                </div>
-            </div>
-            <div class="episode" onclick="changeVideo('recomeceaqui2.mp4', 'Episódio 2: O Caminho', 'Descrição do episódio 2: Explorando o caminho da fé.')">
-                <img src="thumb2.jpg" alt="Thumbnail Episódio 2">
-                <div class="episode-info">
-                    <h4>Episódio 2: O Caminho</h4>
-                    <p>Descrição do episódio 2: Explorando o caminho da fé.</p>
-                </div>
-            </div>
-            <div class="episode" onclick="changeVideo('recomeceaqui3.mp4', 'Episódio 3: A Missão', 'Descrição do episódio 3: Entendendo a missão de vida.')">
-                <img src="thumb3.jpg" alt="Thumbnail Episódio 3">
-                <div class="episode-info">
-                    <h4>Episódio 3: A Missão</h4>
-                    <p>Descrição do episódio 3: Entendendo a missão de vida.</p>
-                </div>
+
+    <div id="breadcrumbs"><span class="crumb active">Brain</span></div>
+    <div id="sidebar"></div>
+
+    <div id="viewport">
+        <div id="world">
+            <svg id="connections-layer"></svg>
+            <div id="card-root" class="card" data-x="300" data-y="200" style="transform: translate(300px, 200px);">
+                <h2 contenteditable="true">Brain (Início)</h2>
+                <p contenteditable="true">Edite este texto e dê duplo clique.</p>
             </div>
         </div>
+        <div id="hud">Zoom: <span id="zoom-level">100%</span></div>
     </div>
+
+    <div id="context-menu"></div>
+    <div id="connection-picker">
+        <h3 style="color:#fff; margin-top:0;">Conectar com:</h3>
+        <div id="picker-list"></div>
+        <button onclick="closePicker()" style="margin-top:10px; width:100%; padding: 5px; cursor: pointer;">Cancelar</button>
+    </div>
+
+    <script>
+        // --- GLOBAIS ---
+        const viewport = document.getElementById('viewport');
+        const world = document.getElementById('world');
+        const sidebar = document.getElementById('sidebar');
+        const svgLayer = document.getElementById('connections-layer');
+        const contextMenu = document.getElementById('context-menu');
+        const connectionPicker = document.getElementById('connection-picker');
+        const pickerList = document.getElementById('picker-list');
+        const breadcrumbsBar = document.getElementById('breadcrumbs');
+        
+        const state = {
+            scale: 1, x: 0, y: 0,
+            isPanning: false, panStartX: 0, panStartY: 0,
+            draggedCard: null, cardStartX: 0, cardStartY: 0, mouseStartX: 0, mouseStartY: 0
+        };
+
+        let currentLayerID = 'root';
+        // layerStack guarda: { id: 'card-1', title: 'Nome do Projeto' }
+        let layerStack = []; 
+        let layerStorage = { 'root': { elements: [], connections: [] } };
+        let currentConnections = []; 
+        let contextTargetID = null;
+
+        // --- SISTEMA DE CAMADAS ---
+
+        function saveCurrentLayerState() {
+            const elements = Array.from(world.children).filter(el => el.classList.contains('card'));
+            layerStorage[currentLayerID] = {
+                elements: elements,
+                connections: [...currentConnections], 
+                viewState: { x: state.x, y: state.y, scale: state.scale },
+                // Salvamos o título atual desta camada caso precisemos exibi-lo ao voltar
+                title: currentLayerID === 'root' ? 'Brain' : 'Camada' 
+            };
+        }
+
+        function enterLayer(targetCardID, targetCardTitle) {
+            // 1. Antes de sair, salvamos o título da camada atual para o histórico
+            // Se estamos no root, o título é "Brain". Se estamos numa pasta, pegamos do breadcrumb.
+            const currentTitle = layerStack.length === 0 ? 'Brain' : layerStack[layerStack.length - 1].title;
+            
+            // Mas espera! O layerStack guarda o pai. Nós somos o filho.
+            // Vamos simplificar: O card que clicamos agora (targetCardTitle) será o título da NOVA camada.
+            // O título da camada ATUAL (que vai virar pai) precisa ir pro stack.
+            
+            // Correção lógica breadcrumb:
+            // Se estou em Brain e entro em "Proj A", o stack recebe "Brain". A tela atual vira "Proj A".
+            
+            let parentTitle = 'Brain';
+            if (currentLayerID !== 'root') {
+                 // Recupera o nome da camada atual para salvar no histórico
+                 // (Isso é um truque visual, o ideal seria ter um metadado na storage)
+                 const lastCrumb = document.querySelector('.crumb.active');
+                 parentTitle = lastCrumb ? lastCrumb.innerText : 'Voltar';
+            }
+
+            saveCurrentLayerState();
+            
+            // Adiciona a camada que estamos SAINDO no histórico
+            layerStack.push({ id: currentLayerID, title: parentTitle });
+
+            // Muda para a nova
+            currentLayerID = targetCardID;
+            
+            // Atualiza breadcrumb com o título que recebemos do card clicado
+            updateBreadcrumbs(targetCardTitle);
+            
+            if (!layerStorage[currentLayerID]) {
+                layerStorage[currentLayerID] = { elements: [], connections: [], viewState: { x: 0, y: 0, scale: 1 } };
+            }
+            renderLayer(currentLayerID);
+        }
+
+        function goToLayer(layerID) {
+            if (layerID === currentLayerID) return;
+            saveCurrentLayerState();
+
+            // Corta o histórico
+            const index = layerStack.findIndex(l => l.id === layerID);
+            if (index !== -1) {
+                layerStack = layerStack.slice(0, index);
+            } else if (layerID === 'root') {
+                layerStack = [];
+            }
+
+            currentLayerID = layerID;
+            
+            // Ao voltar, precisamos descobrir qual título mostrar no "active".
+            // Se voltamos pro root, é Brain. Se voltamos pra uma pasta, precisamos pegar do histórico ou storage.
+            // Simplificação: updateBreadcrumbs vai reconstruir baseado no stack + título atual.
+            // Como não passamos título aqui, ele vai deduzir.
+            renderLayer(currentLayerID);
+            updateBreadcrumbs(); 
+        }
+
+        function updateBreadcrumbs(activeTitleOverride) {
+            let html = ``;
+            
+            // Se o stack está vazio, estamos no root
+            if (layerStack.length === 0) {
+                 html += `<span class="crumb active">Brain</span>`;
+            } else {
+                // Desenha o histórico
+                layerStack.forEach((layer, index) => {
+                    html += `<span class="crumb" onclick="goToLayer('${layer.id}')">${layer.title}</span>`;
+                    html += `<span class="crumb-separator">/</span>`;
+                });
+
+                // Desenha o atual
+                // Se passamos um título novo (ao entrar), usa ele. Se não (ao voltar), tenta deduzir.
+                let displayTitle = activeTitleOverride;
+                if (!displayTitle) {
+                    displayTitle = "Camada Atual"; // Fallback se voltarmos e perdermos o nome
+                    // Tenta recuperar de algum lugar se necessário no futuro
+                }
+                html += `<span class="crumb active">${displayTitle}</span>`;
+            }
+
+            breadcrumbsBar.innerHTML = html;
+        }
+
+        function renderLayer(layerID) {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(c => c.remove());
+            svgLayer.innerHTML = ''; 
+
+            const data = layerStorage[layerID];
+            currentConnections = data.connections || [];
+            
+            data.elements.forEach(el => world.appendChild(el));
+
+            currentConnections.forEach(conn => {
+                // Importante: recriar como PATH, não LINE
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.classList.add('connector-line');
+                conn.line = path; 
+                svgLayer.appendChild(path);
+                const el1 = document.getElementById(conn.from);
+                const el2 = document.getElementById(conn.to);
+                if(el1 && el2) drawSVGPath(path, el1, el2);
+            });
+
+            if (data.viewState) {
+                state.x = data.viewState.x; y = data.viewState.y; state.scale = data.viewState.scale;
+            } else {
+                state.x = 0; state.y = 0; state.scale = 1;
+            }
+            draw();
+        }
+
+        // --- DRAW & EVENTS ---
+        
+        function draw() {
+            world.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+            viewport.style.backgroundPosition = `${state.x}px ${state.y}px`;
+            viewport.style.backgroundSize = `${40 * state.scale}px ${40 * state.scale}px`;
+            document.getElementById('zoom-level').innerText = Math.round(state.scale * 100) + '%';
+        }
+
+        // --- DUPLO CLIQUE (SMART TITLES) ---
+        viewport.addEventListener('dblclick', (e) => {
+            const card = e.target.closest('.card');
+            
+            if (card) {
+                e.stopPropagation();
+                
+                // PEGA O TÍTULO REAL (editado pelo usuário)
+                // Usamos innerText para pegar o que o usuário escreveu, limpo de tags HTML
+                let title = card.querySelector('h2') ? card.querySelector('h2').innerText : 'Sem Nome';
+                title = title.trim();
+                if(!title) title = "Sem Nome";
+
+                card.style.transform += " scale(1.1)";
+                setTimeout(() => {
+                    enterLayer(card.id, title);
+                }, 100);
+            }
+        });
+
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.button === 2) return; 
+            hideContextMenu();
+            if (e.button === 1) { e.preventDefault(); startPan(e); return; }
+            if (e.button === 0) {
+                const card = e.target.closest('.card');
+                // Se clicou em editável (h2/p), deixa o navegador focar no texto
+                if (e.target.isContentEditable) return; 
+
+                if (card) startDragCard(e, card);
+                else startPan(e);
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (state.isPanning) {
+                e.preventDefault();
+                state.x = e.clientX - state.panStartX;
+                state.y = e.clientY - state.panStartY;
+                draw();
+            }
+            if (state.draggedCard) {
+                e.preventDefault();
+                const dX = e.clientX - state.mouseStartX;
+                const dY = e.clientY - state.mouseStartY;
+                const nX = state.cardStartX + (dX / state.scale);
+                const nY = state.cardStartY + (dY / state.scale);
+                state.draggedCard.style.transform = `translate(${nX}px, ${nY}px)`;
+                state.draggedCard.setAttribute('data-x', nX);
+                state.draggedCard.setAttribute('data-y', nY);
+                updateLines(state.draggedCard.id);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            state.isPanning = false;
+            if (state.draggedCard) { state.draggedCard.classList.remove('dragging'); state.draggedCard = null; }
+            viewport.style.cursor = 'default';
+        });
+
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const d = -Math.sign(e.deltaY);
+            const s = Math.min(Math.max(0.1, state.scale + (d * 0.1)), 5);
+            const mX = e.clientX; 
+            const mY = e.clientY; 
+            state.x -= (mX - state.x) * (s / state.scale - 1);
+            state.y -= (mY - state.y) * (s / state.scale - 1);
+            state.scale = s;
+            draw();
+        }, { passive: false });
+
+        function startPan(e) {
+            state.isPanning = true;
+            state.panStartX = e.clientX - state.x;
+            state.panStartY = e.clientY - state.y;
+            viewport.style.cursor = 'grabbing';
+        }
+
+        function startDragCard(e, card) {
+            state.draggedCard = card;
+            state.mouseStartX = e.clientX;
+            state.mouseStartY = e.clientY;
+            state.cardStartX = parseFloat(card.getAttribute('data-x'));
+            state.cardStartY = parseFloat(card.getAttribute('data-y'));
+            card.classList.add('dragging');
+            e.stopPropagation();
+        }
+
+        // --- CONEXÕES FLUIDAS (BÉZIER) ---
+        
+        function updateLines(movedCardID) {
+            currentConnections.forEach(conn => {
+                if (conn.from === movedCardID || conn.to === movedCardID) {
+                    const el1 = document.getElementById(conn.from);
+                    const el2 = document.getElementById(conn.to);
+                    if (el1 && el2) drawSVGPath(conn.line, el1, el2);
+                }
+            });
+        }
+
+        // A MÁGICA DA CURVA ACONTECE AQUI
+        function drawSVGPath(pathElement, el1, el2) {
+            const x1 = parseFloat(el1.getAttribute('data-x')) + (el1.offsetWidth / 2);
+            const y1 = parseFloat(el1.getAttribute('data-y')) + (el1.offsetHeight / 2);
+            const x2 = parseFloat(el2.getAttribute('data-x')) + (el2.offsetWidth / 2);
+            const y2 = parseFloat(el2.getAttribute('data-y')) + (el2.offsetHeight / 2);
+            const offset = 50000;
+
+            // Pontos reais no SVG
+            const sx = x1 + offset;
+            const sy = y1 + offset;
+            const ex = x2 + offset;
+            const ey = y2 + offset;
+
+            // Calcula curvatura baseada na distância
+            // Se estiverem perto, curva pouco. Longe, curva mais.
+            const dist = Math.abs(ex - sx) * 0.5; 
+            const cp1x = sx + dist; // Control Point 1 (sai pela direita)
+            const cp2x = ex - dist; // Control Point 2 (entra pela esquerda)
+
+            // Se quiser estilo "Árvore Vertical", use Y nos control points.
+            // Para "Fluxograma Horizontal" (nosso caso), usamos X.
+
+            // Comando SVG Path: Move (M) -> Cubic Bezier (C)
+            const d = `M ${sx} ${sy} C ${cp1x} ${sy}, ${cp2x} ${ey}, ${ex} ${ey}`;
+            
+            pathElement.setAttribute('d', d);
+        }
+
+        function createConnection(targetID) {
+            if (!contextTargetID || contextTargetID === targetID) return;
+            // Cria PATH em vez de LINE
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.classList.add('connector-line');
+            svgLayer.appendChild(path);
+            
+            const conn = { from: contextTargetID, to: targetID, line: path };
+            currentConnections.push(conn);
+
+            const el1 = document.getElementById(contextTargetID);
+            const el2 = document.getElementById(targetID);
+            drawSVGPath(path, el1, el2);
+            closePicker();
+        }
+
+        // --- MENU E PLUGINS ---
+        window.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const card = e.target.closest('.card');
+            if (card) {
+                contextTargetID = card.id;
+                showContextMenu(e.clientX, e.clientY, true);
+            } else {
+                hideContextMenu();
+            }
+        });
+
+        function showContextMenu(x, y, isCard) {
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = x + 'px';
+            contextMenu.style.top = y + 'px';
+            contextMenu.innerHTML = ''; 
+
+            if (isCard) {
+                const btnConnect = document.createElement('div');
+                btnConnect.className = 'menu-item';
+                btnConnect.innerText = '🔗 Conectar';
+                btnConnect.onclick = openConnectionPicker;
+                contextMenu.appendChild(btnConnect);
+            }
+        }
+
+        function hideContextMenu() { contextMenu.style.display = 'none'; }
+
+        function openConnectionPicker() {
+            hideContextMenu();
+            connectionPicker.style.display = 'block';
+            pickerList.innerHTML = '';
+            const allCards = document.querySelectorAll('.card');
+            allCards.forEach(card => {
+                if (card.id === contextTargetID) return; 
+                const item = document.createElement('div');
+                item.className = 'picker-option';
+                const title = card.querySelector('h2') ? card.querySelector('h2').innerText : 'Sem Nome';
+                item.innerText = `${title}`;
+                item.onclick = () => createConnection(card.id);
+                pickerList.appendChild(item);
+            });
+        }
+        function closePicker() { connectionPicker.style.display = 'none'; }
+
+        window.registerPlugin = function(icon, tooltip, action) {
+            const btn = document.createElement('button');
+            btn.className = 'tool-btn';
+            btn.innerHTML = icon;
+            btn.title = tooltip;
+            btn.onclick = (e) => { e.stopPropagation(); action(); };
+            sidebar.appendChild(btn);
+        }
+
+        window.spawnCardAtCenter = function(contentHTML) {
+            const centerX = ((window.innerWidth - 60) / 2 - state.x) / state.scale;
+            const centerY = ((window.innerHeight) / 2 - state.y) / state.scale;
+            const el = document.createElement('div');
+            el.className = 'card';
+            el.id = 'card-' + Date.now(); 
+            el.setAttribute('data-x', centerX);
+            el.setAttribute('data-y', centerY);
+            el.style.transform = `translate(${centerX}px, ${centerY}px)`;
+            el.innerHTML = contentHTML;
+            world.appendChild(el);
+        }
+
+        registerPlugin('📝', 'Criar Nota', () => spawnCardAtCenter(`<h2 contenteditable="true">Nota</h2><p contenteditable="true">Escreva...</p>`));
+        registerPlugin('📁', 'Novo Projeto', () => spawnCardAtCenter(`<h2 contenteditable="true" style="color:#bb86fc">Projeto</h2><p>Duplo Clique</p>`));
+
+        draw();
+    </script>
 </body>
 </html>
