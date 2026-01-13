@@ -410,36 +410,8 @@
         // 2. AQUI COMEÇAM OS PLUGINS (INCLUÍDOS PARA FUNCIONAR)
         // =========================================================
 
-        // PLUGIN 1: NOTA DE TEXTO
-        window.registerPlugin('📝', 'Criar Nota', () => {
-            window.spawnCardAtCenter(`
-                <div class="card-content">
-                    <h2>Nova Nota</h2>
-                    <p>Duplo clique para abrir editor...</p>
-                </div>
-            `, 'text');
-        });
-        
-        // Comportamento do Plugin de Texto:
-        // Quando duplo clicar, não entra na pasta normal. Entra no "Modo Documento".
-        window.pluginActions['text'] = function(card) {
-            let title = card.querySelector('h2').innerText;
-            // Chama a função interna de entrar na camada, mas avisando que é tipo 'text'
-            enterLayer(card.id, title, 'text', card);
-        };
-
-        // PLUGIN 2: PROJETO (PASTA)
-        window.registerPlugin('📁', 'Novo Projeto', () => {
-             window.spawnCardAtCenter(`
-                <div class="card-content">
-                    <h2 style="color:#bb86fc">Projeto</h2>
-                    <p>Duplo clique para abrir pasta</p>
-                </div>
-            `, 'default');
-        });
-
         // Inicializa
         draw();
-    </script>
+    </script><script src="plugins/plugin-texto.js"></script>
 </body>
 </html>
