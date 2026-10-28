@@ -141,6 +141,22 @@ body.tlv-on #tlv{display:block}
 #tlv .x{padding:0 5px;line-height:1.3;font-size:13px;border-radius:5px;flex:none;background:transparent;border-color:transparent;color:var(--mu)}
 #tlv .tlhint span{position:sticky;left:142px;display:inline-block;padding:4px 0;color:var(--mu);font-size:11.5px;white-space:nowrap}
 #tlvPh{position:absolute;top:0;bottom:0;width:var(--cw);z-index:3;pointer-events:none;box-sizing:border-box;background:color-mix(in srgb,var(--ok) 13%,transparent);border-left:1px solid var(--ok);display:none}
+#tlv .hd{position:absolute;top:0;bottom:0;width:6px;cursor:ew-resize;touch-action:none;opacity:.85;z-index:2}
+#tlv .hd.l{left:0}#tlv .hd.r{right:0}
+#tlv .hd:hover{opacity:1;width:9px}
+#tlv .tc{position:relative}
+#tlv .tc .hb{display:none;background:var(--ok)}
+#tlv .tc:hover .hb,#tlv .tc.dr .hb{display:block}
+#tlv .hl{position:absolute;left:0;top:0;bottom:0;width:100%;pointer-events:none}
+#tlv .hold{position:absolute;top:3px;height:calc(100% - 6px);box-sizing:border-box;border:1px solid var(--ok);border-radius:4px;background:color-mix(in srgb,var(--ok) 22%,transparent)}
+#tlv .hold .hd{pointer-events:auto;background:var(--ok)}
+#bar .tlvOnly{display:none}
+body.tlv-on #bar .tlvOnly{display:inline-flex}
+#tlv .tcs.thin .tc{padding:0;height:12px;background:color-mix(in srgb,var(--ok) 30%,var(--pn));box-shadow:inset -1px 0 0 var(--pn2)}
+#tlv .tcs.thin .tc.act{background:var(--ok)}
+#tlv .tcs.thin .tc.sel{background:var(--ac)}
+#tlv .tcs.thin .tc:hover{background:color-mix(in srgb,var(--ok) 55%,var(--pn))}
+#tlv .clip.csel{box-shadow:0 0 0 2px var(--ac);z-index:1}
 </style>
 </head>
 <body>
@@ -436,15 +452,52 @@ else if(k==='x')copyPrev();else if(k==='[')setSize(SZ-2);else if(k===']')setSize
    que você move (Ctrl+clique no desenho, arraste, confirme). Tecla T alterna. */
 (function(){
 const LAB=132;
-let on=false,CW=40,busy=false,tracks=[],cnt=0,last=-1,selWas=false;
+let on=false,CW=40,busy=false,tracks=[],cnt=0,last=-1,selWas=false,holds=[],bars=new Map(),showTh=true,csel=new Set(),cclip=[],clipEls=new Map();
 const btn=document.createElement('button');btn.id='bTlv';btn.textContent='☰ Timeline';btn.title='Alternar entre a faixa de frames e a timeline em linhas (T)';
 $('#bNext').after(btn);
+const lbTh=document.createElement('label');lbTh.className='tlvOnly';lbTh.innerHTML='<input id="tlvTh" type="checkbox" checked> Frames na timeline';lbTh.title='Desmarque para ver o desenho base e os objetos só como linhas, sem miniaturas por frame';
+const bCp=document.createElement('button');bCp.id='bTlvCopy';bCp.className='tlvOnly';bCp.textContent='Copiar objeto';bCp.disabled=true;bCp.title='Clique num objeto da timeline (Shift+clique para vários) e copie. Atalho: Ctrl+C';
+const bPs=document.createElement('button');bPs.id='bTlvPaste';bPs.className='tlvOnly';bPs.textContent='Colar objeto';bPs.disabled=true;bPs.title='Cola no frame atual (clique num frame da timeline para escolher onde). Atalho: Ctrl+V';
+btn.after(lbTh,bCp,bPs);
 const box=document.createElement('div');box.id='tlv';
 box.innerHTML='<div id="tlvIn" style="--cw:40px"><div id="tlvH" class="tlr"><div class="tll"><b>Frames</b><input id="tlvZ" type="range" min="16" max="90" value="40" title="Zoom da timeline" aria-label="Zoom da timeline"></div><div class="tlt" id="tlvRu"></div></div><div id="tlvVid"></div><div id="tlvBase"></div><div id="tlvObj"></div><div id="tlvPh"></div></div>';
 $('#frames').after(box);
 const ru=$('#tlvRu'),tmp=mk(160,90);
-const dims=()=>{const cw=Math.max(10,CW-2);return{cw,ch:Math.max(6,Math.round(cw*H/W))}};
+const dims=()=>{const cw=Math.max(10,CW-2);return{cw,ch:showTh?Math.max(6,Math.round(cw*H/W)):12}};
 function clickFrame(i,e){const o=$('#frames').children[i];if(o&&o.onclick)o.onclick(e);else go(i)}
+
+/* ---------- extensão do desenho pelos frames ---------- */
+const span=c=>{const o=frames.indexOf(c.fr);return o<0?null:{s:Math.max(0,o-c.b),e:Math.min(frames.length-1,o+c.a)}};
+const hasExt=()=>tracks.some(t=>!t.off&&t.clips.some(c=>c.a||c.b));
+function drawExt(x,i){for(const t of tracks){if(t.off)continue;for(const c of t.clips){if(!c.a&&!c.b)continue;const o=frames.indexOf(c.fr);if(o<0||i===o||i<o-c.b||i>o+c.a)continue;
+x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}}}
+function extThumb(i){const cell=$('#frames').children[i];if(!cell)return;const t=cell.querySelector('canvas'),x=t.getContext('2d'),k=t.width/W;x.save();x.scale(k,k);drawExt(x,i);x.restore()}
+function refreshSpan(s){if(!s)return;for(let i=s.s;i<=s.e;i++)thumb(i)}
+
+/* ---------- desenho base: estender/encurtar o desenho de um frame (grava nos frames de verdade) ---------- */
+const holdOf=fr=>holds.find(Q=>Q.list.includes(fr));
+const copyC=c=>{const k=mk(c.width,c.height);k.getContext('2d').drawImage(c,0,0);return k};
+const isEmpty=c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<d.length;i+=4)if(d[i])return false;return true};
+const rng=Q=>{const ix=Q.list.map(f=>frames.indexOf(f)).filter(i=>i>=0);return ix.length?{s:Math.min(...ix),e:Math.max(...ix)}:null};
+function pruneHolds(){for(let k=holds.length-1;k>=0;k--){const Q=holds[k];Q.list=Q.list.filter(f=>frames.includes(f));for(const f of [...Q.saved.keys()])if(!frames.includes(f))Q.saved.delete(f);if(!Q.list.length)holds.splice(k,1)}}
+/* frames que saem do intervalo voltam ao que eram antes; frames que entram recebem o desenho */
+function setRange(Q,s,z){const sub=frames.slice(s,z+1),want=new Set(sub),had=new Set(Q.list),ch=[];
+for(const f of Q.list)if(!want.has(f)){const x=f.c.getContext('2d');x.clearRect(0,0,W,H);const sv=Q.saved.get(f);if(sv)x.drawImage(sv,0,0);Q.saved.delete(f);ch.push(f)}
+for(const f of sub)if(!had.has(f)){Q.saved.set(f,f===Q.origin||isEmpty(f.c)?null:copyC(f.c));f.c.getContext('2d').drawImage(Q.src,0,0);ch.push(f)}
+Q.list=sub;ch.forEach(f=>{const i=frames.indexOf(f);if(i>=0)thumb(i)})}
+function placeHold(Q){const L=$('#tlvBase .hl');if(!L)return;const r=rng(Q);let b=bars.get(Q);const triv=!r||(Q.list.length===1&&Q.list[0]===Q.origin);
+if(triv){if(b){b.remove();bars.delete(Q)}return}
+if(!b){b=document.createElement('div');b.className='hold';['l','r'].forEach(sd=>{const h=document.createElement('i');h.className='hd '+sd;h.title='Arraste para estender ou encurtar o desenho';h.onclick=e=>e.stopPropagation();h.onpointerdown=ev=>startHold(ev,h,Q.origin,sd==='r',Q);b.append(h)});L.append(b);bars.set(Q,b)}
+b.style.left=(r.s*CW+1)+'px';b.style.width=((r.e-r.s+1)*CW-2)+'px'}
+function startHold(ev,h,fr,right,Q0){ev.stopPropagation();ev.preventDefault();if(playing)stop();h.setPointerCapture(ev.pointerId);
+let Q=Q0||holdOf(fr);const pc=h.parentNode;pc.classList.add('dr');
+if(!Q){Q={origin:fr,src:copyC(fr.c),list:[fr],saved:new Map([[fr,null]])};holds.push(Q)}
+else if(Q.list.includes(Q.origin))Q.src=copyC(Q.origin.c);
+const r0=rng(Q),x0=ev.clientX;
+const mv=e=>{const dx=Math.round((e.clientX-x0)/CW);let s=r0.s,z=r0.e;if(right)z=Math.max(s,Math.min(frames.length-1,r0.e+dx));else s=Math.min(z,Math.max(0,r0.s+dx));setRange(Q,s,z);placeHold(Q);render()};
+const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);pc.classList.remove('dr');
+if(Q.list.length===1&&Q.list[0]===Q.origin){const k=holds.indexOf(Q);if(k>=0)holds.splice(k,1)}placeHold(Q);render()};
+h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)}
 
 /* ---------- régua: clique/arraste para navegar ---------- */
 const scrub=e=>{if(!frames.length)return;const r=ru.getBoundingClientRect();if(playing)stop();go(Math.floor((e.clientX-r.left)/CW))};
@@ -453,38 +506,54 @@ ru.addEventListener('pointermove',e=>{if(e.buttons&1)scrub(e)});
 $('#tlvZ').oninput=e=>{CW=+e.target.value;if(on)tlvBuild()};
 
 /* ---------- desenho das linhas ---------- */
-function tlvThumb(i){const row=$('#tlvBase .tcs'),d=row&&row.children[i];if(!d||!frames[i])return;
+function tlvThumb(i){if(!showTh)return;const row=$('#tlvBase .tcs'),d=row&&row.children[i];if(!d||!frames[i])return;
 const c=d.firstChild,x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
-tmp.width=160;tmp.height=Math.max(1,Math.round(160*H/W));const t=tmp.getContext('2d');t.imageSmoothingQuality='high';t.drawImage(frames[i].c,0,0,tmp.width,tmp.height);
+tmp.width=160;tmp.height=Math.max(1,Math.round(160*H/W));const t=tmp.getContext('2d');t.imageSmoothingQuality='high';t.drawImage(frames[i].c,0,0,tmp.width,tmp.height);if(hasExt()){const k=tmp.width/W;t.save();t.scale(k,k);drawExt(t,i);t.restore()}
 x.imageSmoothingQuality='high';x.drawImage(tmp,0,0,c.width,c.height)}
 function tlvBuild(){
 const n=frames.length,{cw,ch}=dims(),w=n*CW;last=-1;selWas=true;
 $('#tlvIn').style.setProperty('--cw',CW+'px');
-const step=CW>=34?1:CW>=22?2:5;ru.style.width=w+'px';ru.textContent='';
+const step=CW>=34?1:CW>=22?2:CW>=12?5:CW>=7?10:25;ru.style.width=w+'px';ru.textContent='';
 for(let i=0;i<n;i++){const t=document.createElement('i');if(i===0||(i+1)%step===0)t.textContent=i+1;t.title='Frame '+(i+1)+' · '+(i/fps()).toFixed(2)+' s';ru.append(t)}
 const vr=$('#tlvVid');
 if(frames.some(f=>f.bg)){vr.className='tlr';vr.innerHTML='<div class="tll"><span class="chip" style="background:var(--ac)"></span><b>Vídeo</b></div><div class="tlt" style="width:'+w+'px"><div class="bar"><span>vídeo importado · '+frames.filter(f=>f.bg).length+' frames</span></div></div>'}
 else{vr.className='';vr.textContent=''}
-const br=$('#tlvBase');br.className='tlr';br.innerHTML='<div class="tll"><span class="chip" style="background:var(--ok)"></span><b>Desenho base</b></div>';
-const tt=document.createElement('div');tt.className='tlt tcs';tt.style.width=w+'px';
-for(let i=0;i<n;i++){const d=document.createElement('div');d.className='tc';d.style.width=CW+'px';d.title='Frame '+(i+1);const c=mk(cw,ch);c.style.width=cw+'px';c.style.height=ch+'px';d.append(c);d.onclick=e=>clickFrame(i,e);tt.append(d)}
-br.append(tt);for(let i=0;i<n;i++)tlvThumb(i);
+const br=$('#tlvBase');br.className='tlr';br.innerHTML='<div class="tll"><span class="chip" style="background:var(--ok)"></span><b title="Passe o mouse num quadro e arraste a borda para estender ou encurtar o desenho pelos frames">Desenho base</b></div>';
+const tt=document.createElement('div');tt.className='tlt tcs'+(showTh?'':' thin');tt.style.width=w+'px';
+for(let i=0;i<n;i++){const d=document.createElement('div');d.className='tc';d.style.width=CW+'px';d.title='Frame '+(i+1);if(showTh){const c=mk(cw,ch);c.style.width=cw+'px';c.style.height=ch+'px';d.append(c)}['l','r'].forEach(sd=>{const hb=document.createElement('i');hb.className='hd '+sd+' hb';hb.title='Arraste para estender ou encurtar este desenho pelos frames';hb.onclick=ev=>ev.stopPropagation();hb.onpointerdown=ev=>startHold(ev,hb,frames[i],sd==='r',null);d.append(hb)});d.onclick=e=>clickFrame(i,e);tt.append(d)}
+br.append(tt);const hl=document.createElement('div');hl.className='hl';tt.append(hl);bars=new Map();holds.forEach(placeHold);for(let i=0;i<n;i++)tlvThumb(i);
 tlvObj();tlvMark()}
 function tlvObj(){
 for(let k=tracks.length-1;k>=0;k--){const t=tracks[k];if((t.off&&!redo.some(x=>x.g===t.g))||!t.clips.some(c=>frames.includes(c.fr)))tracks.splice(k,1)}
-const o=$('#tlvObj');o.textContent='';if(!on)return;
+const o=$('#tlvObj');o.textContent='';clipEls.clear();if(!on)return;
 const {cw,ch}=dims(),n=frames.length,idx=new Map(frames.map((f,i)=>[f,i])),vis=tracks.filter(t=>!t.off);
-if(!vis.length){o.innerHTML='<div class="tlr tlhint"><div class="tll"></div><div class="tlt" style="width:'+n*CW+'px"><span>Mova um desenho (Ctrl+clique nele, arraste, Enter) e ele vira uma nova linha aqui.</span></div></div>';return}
+if(!vis.length){o.innerHTML='<div class="tlr tlhint"><div class="tll"></div><div class="tlt" style="width:'+n*CW+'px"><span>Mova um desenho (Ctrl+clique nele, arraste, Enter) e ele vira uma nova linha aqui. Arraste as bordas da linha para estendê-lo por mais frames.</span></div></div>';return}
 vis.forEach(t=>{const col='hsl('+t.hue+',75%,52%)',r=document.createElement('div');r.className='tlr';r.style.height=(ch+8)+'px';
-const l=document.createElement('div');l.className='tll';l.innerHTML='<span class="chip"></span><b></b><button class="x" title="Remover da timeline (não apaga o desenho)">×</button>';
+const l=document.createElement('div');l.className='tll';l.innerHTML='<span class="chip"></span><b></b><button class="x" title="Remover a linha (o desenho no frame original continua)">×</button>';
 l.querySelector('.chip').style.background=col;const nm=l.querySelector('b');nm.textContent=t.name;nm.title='Duplo clique para renomear';
 nm.ondblclick=()=>{const v=prompt('Nome da linha:',t.name);if(v&&v.trim()){t.name=v.trim();nm.textContent=t.name}};
-l.querySelector('.x').onclick=()=>{tracks.splice(tracks.indexOf(t),1);tlvObj()};
+l.querySelector('.x').onclick=()=>{const rs=t.clips.map(span);tracks.splice(tracks.indexOf(t),1);rs.forEach(refreshSpan);tlvObj()};
 const tt=document.createElement('div');tt.className='tlt';tt.style.width=n*CW+'px';
-t.clips.forEach(c=>{const i=idx.get(c.fr);if(i==null)return;const d=document.createElement('div');d.className='clip';d.style.cssText='left:'+(i*CW+1)+'px;width:'+cw+'px;height:'+(ch+2)+'px;border-color:'+col;
-const k=mk(cw-2,ch),x=k.getContext('2d'),s=Math.min((k.width-2)/c.w,(k.height-2)/c.h);x.imageSmoothingQuality='high';x.drawImage(c.c,(k.width-c.w*s)/2,(k.height-c.h*s)/2,c.w*s,c.h*s);d.append(k);
-d.title=t.name+' · frame '+(i+1)+'\nposição '+Math.round(c.cx)+', '+Math.round(c.cy)+' · tamanho '+Math.round(c.s*100)+'% · rotação '+Math.round(c.r*180/Math.PI)+'°';
-d.onclick=e=>clickFrame(i,e);tt.append(d)});
+t.clips.forEach(c=>{const o=idx.get(c.fr);if(o==null)return;const d=document.createElement('div');d.className='clip';
+d.style.borderColor=col;d.style.background='color-mix(in srgb,'+col+' 22%,#fff)';
+let k;if(showTh){k=mk(cw-2,ch);const x=k.getContext('2d'),s=Math.min((k.width-2)/c.w,(k.height-2)/c.h);x.fillStyle='#fff';x.fillRect(0,0,k.width,k.height);x.imageSmoothingQuality='high';x.drawImage(c.c,(k.width-c.w*s)/2,(k.height-c.h*s)/2,c.w*s,c.h*s)}
+else{k=document.createElement('div');k.style.cssText='height:100%;width:'+(CW-2)+'px;background:'+col}
+k.style.position='absolute';k.style.top='0';d.append(k);
+const hl=document.createElement('i'),hr=document.createElement('i');hl.className='hd l';hr.className='hd r';hl.style.background=hr.style.background=col;hl.title=hr.title='Arraste para estender o desenho por mais frames';d.append(hl,hr);
+const place=()=>{const a=Math.max(0,o-c.b),z=Math.min(frames.length-1,o+c.a);d.style.left=(a*CW+1)+'px';d.style.width=((z-a+1)*CW-2)+'px';d.style.height=(ch+2)+'px';k.style.left=((o-a)*CW)+'px';
+d.title=t.name+' · frame'+(z>a?'s '+(a+1)+'–'+(z+1)+' ('+(z-a+1)+')':' '+(o+1))+'\nposição '+Math.round(c.cx)+', '+Math.round(c.cy)+' · tamanho '+Math.round(c.s*100)+'% · rotação '+Math.round(c.r*180/Math.PI)+'°\nArraste as bordas para estender'};
+place();
+clipEls.set(c,d);d.classList.toggle('csel',csel.has(c));
+d.onclick=e=>{if(e.shiftKey){csel.has(c)?csel.delete(c):csel.add(c);markClips();return}
+if(!(e.ctrlKey||e.metaKey)){csel.clear();csel.add(c);markClips()}
+const r=d.getBoundingClientRect(),a=Math.max(0,o-c.b);clickFrame(a+Math.max(0,Math.floor((e.clientX-r.left)/CW)),e)};
+[hl,hr].forEach(h=>{h.onclick=e=>e.stopPropagation();
+h.onpointerdown=ev=>{ev.stopPropagation();ev.preventDefault();if(playing)stop();h.setPointerCapture(ev.pointerId);const x0=ev.clientX,a0=c.a,b0=c.b,right=h===hr,old=span(c);
+const mv=e=>{const dx=Math.round((e.clientX-x0)/CW);if(right)c.a=Math.max(0,Math.min(frames.length-1-o,a0+dx));else c.b=Math.max(0,Math.min(o,b0-dx));place();render()};
+const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);const nw=span(c);
+if(old&&nw)refreshSpan({s:Math.min(old.s,nw.s),e:Math.max(old.e,nw.e)});render()};
+h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)}});
+tt.append(d)});
 r.append(l,tt);o.append(r)})}
 function tlvMark(){
 if(!on)return;const n=frames.length,ph=$('#tlvPh');ph.style.display=n?'block':'none';ph.style.left=(LAB+cur*CW)+'px';
@@ -498,23 +567,49 @@ function toggle(v){on=v===undefined?!on:v;document.body.classList.toggle('tlv-on
 btn.onclick=()=>toggle();
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();toggle()}});
 
+/* ---------- copiar e colar objetos da timeline ---------- */
+function markClips(){clipEls.forEach((d,c)=>d.classList.toggle('csel',csel.has(c)));bCp.disabled=!csel.size;bPs.disabled=!cclip.length}
+function copyClips(){const L=[];for(const t of tracks){if(t.off)continue;for(const c of t.clips){if(!csel.has(c))continue;const o=frames.indexOf(c.fr);if(o<0)continue;L.push({o,name:t.name.replace(/ \(cópia\)$/,''),c:c.c,w:c.w,h:c.h,cx:c.cx,cy:c.cy,s:c.s,r:c.r,a:c.a||0,b:c.b||0})}}
+if(!L.length){toast('Clique num objeto da timeline antes de copiar (Shift+clique para vários).',3000);return}
+L.sort((p,q)=>p.o-q.o);cclip=L;markClips();toast(L.length+(L.length>1?' objetos copiados':' objeto copiado')+'. Escolha um frame e use Colar objeto (Ctrl+V).',3500)}
+function pasteClips(at){if(!cclip.length||!frames.length)return;commitFloat();
+const base=cclip[0].o,g=++G,seen=new Set(),made=[];let out=0;
+cclip.forEach(k=>{const idx=at+(k.o-base);if(idx<0||idx>=frames.length){out++;return}
+const f=frames[idx],x=f.c.getContext('2d');
+if(!seen.has(f)){seen.add(f);undo.push({i:idx,g,d:x.getImageData(0,0,W,H)})}
+x.save();x.translate(k.cx,k.cy);x.rotate(k.r);x.scale(k.s,k.s);x.drawImage(k.c,-k.w/2,-k.h/2);x.restore();
+cnt++;made.push({name:k.name+' (cópia)',hue:(cnt*47+200)%360,g,off:false,clips:[{fr:f,c:k.c,w:k.w,h:k.h,cx:k.cx,cy:k.cy,s:k.s,r:k.r,a:k.a,b:k.b}]})});
+if(!made.length){toast('Nenhum objeto coube a partir do frame '+(at+1)+' (o projeto termina antes).',3500);return}
+redo.length=0;while(undo.length>80&&undo[0].g!==g)undo.shift();
+made.forEach(t=>tracks.push(t));csel.clear();made.forEach(t=>csel.add(t.clips[0]));
+seen.forEach(f=>thumb(frames.indexOf(f)));made.forEach(t=>refreshSpan(span(t.clips[0])));
+if(on)tlvObj();markClips();render();
+toast(made.length+(made.length>1?' objetos colados':' objeto colado')+' a partir do frame '+(at+1)+(out?' ('+out+' ficou fora do fim do projeto)':'')+'.',3500)}
+bCp.onclick=copyClips;bPs.onclick=()=>pasteClips(cur);
+addEventListener('keydown',e=>{if(!on||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const k=e.key.toLowerCase(),cm=(e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey;
+if(cm&&k==='c'&&csel.size){e.preventDefault();copyClips()}
+else if(cm&&k==='v'&&cclip.length){e.preventDefault();pasteClips(cur)}
+else if(k==='escape'&&csel.size){csel.clear();markClips()}});
+$('#tlvTh').onchange=e=>{showTh=e.target.checked;const z=$('#tlvZ');z.min=showTh?16:4;if(showTh&&CW<16)CW=16;z.value=CW;if(on)tlvBuild()};
+
 /* ---------- ganchos: acompanham o que o editor já faz, sem alterar o comportamento ---------- */
 const _build=build,_mark=mark,_thumb=thumb,_reset=resetProject,_lift=lift,_commit=commitFloat,_swap=swap;
-build=function(){busy=true;try{_build.apply(this,arguments)}finally{busy=false}if(on)tlvBuild()};
+build=function(){busy=true;try{_build.apply(this,arguments)}finally{busy=false}pruneHolds();if(on)tlvBuild();if(hasExt())frames.forEach((_,i)=>extThumb(i))};
 mark=function(){_mark.apply(this,arguments);if(on&&!busy)tlvMark()};
-thumb=function(i){_thumb.apply(this,arguments);if(on&&!busy)tlvThumb(i)};
-resetProject=function(){tracks.length=0;cnt=0;return _reset.apply(this,arguments)};
+thumb=function(i){_thumb.apply(this,arguments);if(!busy&&hasExt())extThumb(i);if(on&&!busy)tlvThumb(i);};
+const _compose=compose;compose=function(x,i,o){_compose.apply(this,arguments);drawExt(x,i)};
+resetProject=function(){tracks.length=0;cnt=0;holds.length=0;bars=new Map();return _reset.apply(this,arguments)};
 /* ao levantar um desenho (Ctrl+clique) guardamos a posição original */
 lift=function(p,copy){const before=fl;_lift.apply(this,arguments);if(fl&&fl!==before){fl.o={cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r};fl.g=G}};
 /* ao confirmar, se o desenho mudou de posição/tamanho/rotação → vira uma linha nova */
 commitFloat=function(){const f=fl;let t=null;
 if(f&&f.o&&(Math.hypot(f.cx-f.o.cx,f.cy-f.o.cy)>.5||Math.abs(f.s-1)>.001||Math.abs(f.r)>.001)&&frames[f.i]){cnt++;
-t={name:'Objeto '+cnt,hue:(cnt*47+200)%360,g:f.g,off:false,clips:[{fr:frames[f.i],c:f.c,w:f.w,h:f.h,cx:f.cx,cy:f.cy,s:f.s,r:f.r}]}}
+t={name:'Objeto '+cnt,hue:(cnt*47+200)%360,g:f.g,off:false,clips:[{fr:frames[f.i],c:f.c,w:f.w,h:f.h,cx:f.cx,cy:f.cy,s:f.s,r:f.r,a:0,b:0}]}}
 _commit.apply(this,arguments);
 if(t){tracks.push(t);if(on)tlvObj();else toast('Nova linha na timeline: '+t.name+' (tecla T abre a timeline)',3500)}};
 /* desfazer/refazer escondem/mostram a linha correspondente */
 swap=function(from,to){commitFloat();const e=from[from.length-1],ts=e?tracks.filter(t=>t.g===e.g):[];_swap.apply(this,arguments);
-if(e&&ts.length){const n=to[to.length-1];ts.forEach(t=>{t.off=from===undo;t.g=n?n.g:null});tlvObj()}};
+if(e&&ts.length){const n=to[to.length-1];ts.forEach(t=>{t.off=from===undo;t.g=n?n.g:null});ts.forEach(t=>t.clips.forEach(c=>refreshSpan(span(c))));tlvObj()}};
 })();
 </script>
 <script>
@@ -525,6 +620,7 @@ if(e&&ts.length){const n=to[to.length-1];ts.forEach(t=>{t.off=from===undo;t.g=n?
       para decodificar qualquer vídeo e separar todos os frames. */
 (function(){
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const MAXF=3000,PXB=311e6; /* até 3000 frames; acima disso/quando for longo a resolução diminui para caber na memória */
 function seekTo(v,t){return new Promise(r=>{let d=false;const fin=()=>{if(d)return;d=true;v.removeEventListener('seeked',fin);clearTimeout(to);r()};
 const to=setTimeout(fin,3000);v.addEventListener('seeked',fin);if(Math.abs(v.currentTime-t)<.0005){fin();return}v.currentTime=t})}
 async function painted(v){const t0=performance.now();while(v.readyState<2&&performance.now()-t0<1500)await sleep(20);await new Promise(r=>requestAnimationFrame(r));await sleep(12)}
@@ -549,7 +645,7 @@ v.onended=()=>{if(!fin){grab(v.duration||1e9);end()}};sched()})}
 /* ---------- conversor embutido (ffmpeg.wasm): abre MOV/HEVC do iPhone, MKV, AVI etc. ---------- */
 async function viaFfmpeg(file){
 cancel=false;$('#pg').value=0;$('#ovT').textContent='Baixando o conversor de vídeo (≈30 MB, só na primeira vez)…';$('#ov').style.display='grid';
-let ff=null,out=[],w=0,h=0;
+let ff=null,out=[],w=0,h=0,vinfo=null;
 try{
 if(file.size>1.5e9)throw new Error('o arquivo tem mais de 1,5 GB; corte o vídeo antes de importar');
 if(!window.FFmpeg){try{await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js')}catch(e){throw new Error('não consegui baixar o conversor; verifique sua internet')}}
@@ -558,9 +654,12 @@ await ff.load();if(cancel)return;
 $('#ovT').textContent='Lendo o arquivo…';
 const ext=((file.name.match(/\.([a-z0-9]{2,5})$/i)||[])[1]||'mov').toLowerCase(),inName='entrada.'+ext;
 ff.FS('writeFile',inName,new Uint8Array(await file.arrayBuffer()));if(cancel)return;
-const f=fps();$('#ovT').dataset.ff='1';$('#ovT').textContent='Separando os frames (pode levar um tempo em vídeos longos ou 4K)…';
-const k='min(1\\,min(960/iw\\,720/ih))';
-await ff.run('-i',inName,'-an','-vf','fps='+f+',scale=w=trunc(iw*'+k+'/2)*2:h=trunc(ih*'+k+'/2)*2','-frames:v','600','-q:v','3','f%04d.jpg');
+const f=fps();let dur=0;ff.setLogger(({message})=>{const m=/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(message||'');if(m&&!dur)dur=+m[1]*3600+ +m[2]*60+ +m[3]});
+try{await ff.run('-i',inName)}catch(e){}
+const want=dur?Math.max(1,Math.floor(dur*f)):600,total=Math.min(want,MAXF);vinfo={dur,want,total};
+$('#ovT').dataset.ff='1';$('#ovT').textContent='Separando os frames (pode levar um tempo em vídeos longos ou 4K)…';
+const k='min(1\\,min(960/iw\\,min(720/ih\\,sqrt('+Math.round(PXB/total)+'/(iw*ih)))))';
+await ff.run('-i',inName,'-an','-vf','fps='+f+',scale=w=trunc(iw*'+k+'/2)*2:h=trunc(ih*'+k+'/2)*2','-frames:v',String(total),'-q:v','3','f%04d.jpg');
 delete $('#ovT').dataset.ff;
 try{ff.FS('unlink',inName)}catch(e){}
 const names=ff.FS('readdir','/').filter(n=>/^f\d{4}\.jpg$/.test(n)).sort();
@@ -572,14 +671,14 @@ $('#pg').value=i/names.length*100;$('#ovT').textContent='Montando frame '+(i+1)+
 }catch(err){console.error(err);toast('Não consegui importar esse vídeo: '+(err&&err.message||err),12000)}
 finally{delete $('#ovT').dataset.ff;$('#ov').style.display='none';try{ff&&ff.exit()}catch(e){}}
 if(!out.length)return;resetProject(w,h,out);
-toast(out.length+' frames importados'+(out.length>=600?' (limite de 600)':'')+'. Desenhe por cima do vídeo!',4500)}
+toast(out.length+' frames importados ('+(out.length/fps()).toFixed(1)+' s)'+(vinfo&&vinfo.want>MAXF?'. O vídeo é mais longo: importei só os primeiros '+(MAXF/fps()).toFixed(0)+' s (limite de '+MAXF+' frames)':'')+'. Desenhe por cima do vídeo!',6000)}
 
 $('#fVid').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;
 toast('Carregando vídeo…',4000);let v;
 try{v=await loadVideo(file)}catch(err){toast('O navegador não abre esse formato direto'+(file.type?' ('+file.type+')':'')+'. Usando o conversor embutido…',6000);return viaFfmpeg(file)}
 if(!isFinite(v.duration)){try{await seekTo(v,1e7);await seekTo(v,0)}catch(e){}}
 if(!v.videoWidth||!isFinite(v.duration)||v.duration<=0){v.remove();toast('Usando o conversor embutido…',5000);return viaFfmpeg(file)}
-const k=Math.min(1,960/v.videoWidth,720/v.videoHeight),w=Math.round(v.videoWidth*k/2)*2,h=Math.round(v.videoHeight*k/2)*2,f=fps(),total=Math.max(1,Math.min(Math.floor(v.duration*f),600));
+const f=fps(),want=Math.max(1,Math.floor(v.duration*f)),total=Math.min(want,MAXF),lim=Math.min(1,960/v.videoWidth,720/v.videoHeight),k=Math.min(lim,Math.sqrt(PXB/total/(v.videoWidth*v.videoHeight))),w=Math.max(2,Math.round(v.videoWidth*k/2)*2),h=Math.max(2,Math.round(v.videoHeight*k/2)*2),reduced=k<lim-.001,dur=v.duration;
 cancel=false;$('#pg').value=0;$('#ovT').textContent='Preparando…';$('#ov').style.display='grid';let out=[],how='seek';
 try{out=await bySeek(v,w,h,f,total,'Extraindo frame')}catch(err){out=[]}
 if(!cancel&&(!out.length||looksBroken(out,v.duration))){how='play';$('#ovT').textContent='Refazendo pela reprodução…';try{out=await byPlay(v,w,h,f,total,'Capturando frame')}catch(err){out=[]}}
@@ -587,7 +686,7 @@ if(!cancel&&(!out.length||looksBroken(out,v.duration)))out=[];
 $('#ov').style.display='none';v.remove();
 if(!out.length){if(cancel)return;toast('O navegador não decodificou esse vídeo direito. Usando o conversor embutido…',5000);return viaFfmpeg(file)}
 resetProject(w,h,out);
-toast(out.length+' frames importados'+(out.length>=600?' (limite de 600)':'')+(how==='play'?' pelo modo de reprodução':'')+'. Desenhe por cima do vídeo!',4500)};
+toast(out.length+' frames importados ('+(out.length/f).toFixed(1)+' s'+(how==='play'?', modo de reprodução':'')+')'+(want>MAXF?'. O vídeo tem '+dur.toFixed(0)+' s: importei só os primeiros '+(MAXF/f).toFixed(0)+' s (limite de '+MAXF+' frames)':'')+(reduced?'. Resolução reduzida para caber na memória':'')+'. Desenhe por cima do vídeo!',7000)};
 })();
 </script>
 </body>
