@@ -5,22 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Quadro a Quadro – Estúdio de animação 2D</title>
 <style>
-#rows{display:none;overflow:auto;max-height:190px;border:1px solid var(--ln);border-radius:10px;background:var(--pn2)}
-#rows.on{display:block}
-#rin{position:relative}
-.rw{display:flex;height:28px;border-bottom:1px solid var(--ln)}
-.rl{position:sticky;left:0;z-index:3;width:130px;flex:none;background:var(--pn);border-right:1px solid var(--ln);padding:0 8px;font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
-.rl em{font-style:normal;overflow:hidden;text-overflow:ellipsis;flex:1}
-.rl b{cursor:pointer;opacity:.65}.rl b:hover{opacity:1;color:var(--ok)}
-.rl .dot{width:10px;height:10px;border-radius:3px;flex:none}
-.rt{position:relative;flex:none;background-image:repeating-linear-gradient(90deg,transparent 0 21px,var(--ln) 21px 22px);cursor:pointer}
-.rn span{position:absolute;top:7px;font-size:10px;color:var(--mu);transform:translateX(3px);pointer-events:none}
-.bar{position:absolute;top:3px;bottom:3px;border-radius:7px;display:flex;align-items:center;padding:0 10px;font-size:11px;color:#fff;overflow:hidden;white-space:nowrap;cursor:grab;box-shadow:0 1px 4px #0005}
-.bar.base{background:#5b6178;cursor:default;pointer-events:none;opacity:.8}
-.bar.sel{outline:2px solid #fff}
-.bar i{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;background:#fff3}
-.bar i.l{left:0}.bar i.r{right:0}
-.ph{position:absolute;top:0;bottom:0;width:2px;background:var(--ok);z-index:2;pointer-events:none}
 :root{--bg:#f2f1ee;--pn:#e4e2dd;--pn2:#d7d4cd;--ln:#bdb9b0;--tx:#22211f;--mu:#6c675e;--ac:#0b6e8f;--ac2:#fff;--cv:#8a8780;--ok:#d9480f;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#232323;--pn:#2e2e2e;--pn2:#3a3a3a;--ln:#454545;--tx:#e6e6e6;--mu:#9a9a9a;--ac:#e8913a;--ac2:#1b1b1b;--cv:#1a1a1a;--ok:#ff7a45}}
@@ -127,6 +111,37 @@ button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.6)}
 html,body{overflow:hidden;overscroll-behavior:none}
 main{min-height:0;overflow:hidden}
 </style>
+<style>
+/* ===== timeline em linhas (acréscimo) ===== */
+#tlv{display:none;position:relative;overflow:auto;max-height:158px;min-width:0;border:1px solid var(--ln);border-radius:10px;background:var(--pn2)}
+body.tlv-on #frames{display:none}
+body.tlv-on #tlv{display:block}
+#tlvIn{position:relative;width:max-content;min-width:100%;--cw:40px}
+#tlv .tlr{display:flex;align-items:stretch;border-bottom:1px solid var(--ln);min-height:22px}
+#tlv .tll{position:sticky;left:0;z-index:4;flex:none;width:132px;display:flex;align-items:center;gap:6px;padding:0 8px;background:var(--pn);border-right:1px solid var(--ln);color:var(--tx);font-size:11.5px;white-space:nowrap;overflow:hidden}
+#tlv .tll b{font-weight:600;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+#tlv .tll input[type=range]{width:64px;flex:none}
+#tlv .chip{width:9px;height:9px;border-radius:3px;flex:none}
+#tlv .tlt{position:relative;flex:none}
+#tlvH{position:sticky;top:0;z-index:5}
+#tlvRu{display:flex;height:22px;background:var(--pn);cursor:ew-resize;user-select:none;touch-action:none}
+#tlvRu i{flex:none;width:var(--cw);box-sizing:border-box;border-left:1px solid var(--ln);padding:3px 0 0 3px;font-size:10px;line-height:1;font-style:normal;color:var(--mu);overflow:hidden}
+#tlvRu i.cur{background:var(--ok);color:#fff;font-weight:700}
+#tlv .tcs{display:flex;padding:3px 0}
+#tlv .tc{flex:none;box-sizing:border-box;padding:0 1px;cursor:pointer}
+#tlv .tc canvas{display:block;background:#fff;border-radius:3px;box-shadow:0 0 0 1px var(--ln)}
+#tlv .tc:hover canvas{box-shadow:0 0 0 1px var(--ac)}
+#tlv .tc.sel canvas{box-shadow:0 0 0 2px var(--ac)}
+#tlv .tc.act canvas{box-shadow:0 0 0 2px var(--ok)}
+#tlv .bar{position:absolute;left:0;right:0;top:3px;bottom:3px;border-radius:5px;background:color-mix(in srgb,var(--ac) 30%,transparent);border:1px solid var(--ac);font-size:10.5px;display:flex;align-items:center;overflow:hidden}
+#tlv .bar span{position:sticky;left:142px;white-space:nowrap}
+#tlv .clip{position:absolute;top:3px;box-sizing:border-box;border:1px solid;border-radius:4px;background:#fff;overflow:hidden;cursor:pointer}
+#tlv .clip canvas{display:block}
+#tlv .clip:hover{filter:brightness(.93)}
+#tlv .x{padding:0 5px;line-height:1.3;font-size:13px;border-radius:5px;flex:none;background:transparent;border-color:transparent;color:var(--mu)}
+#tlv .tlhint span{position:sticky;left:142px;display:inline-block;padding:4px 0;color:var(--mu);font-size:11.5px;white-space:nowrap}
+#tlvPh{position:absolute;top:0;bottom:0;width:var(--cw);z-index:3;pointer-events:none;box-sizing:border-box;background:color-mix(in srgb,var(--ok) 13%,transparent);border-left:1px solid var(--ok);display:none}
+</style>
 </head>
 <body>
 <header>
@@ -173,7 +188,6 @@ main{min-height:0;overflow:hidden}
     <button id="bNext" title="Próximo frame">▶|</button>
     <label><input id="loop" type="checkbox" checked> Repetir</label>
     <span id="info" style="min-width:90px"></span>
-    <button id="bView" title="Alternar entre frames e linhas">Vista: Frames</button>
     <button id="bAdd" title="N">+ Novo frame</button>
     <button id="bDup" title="D">Duplicar</button>
     <button id="bCp" title="X">Copiar do anterior</button>
@@ -186,7 +200,6 @@ main{min-height:0;overflow:hidden}
     <label>Força <input id="onOp" type="range" min="10" max="80" value="40"></label>
   </div>
   <div id="frames"></div>
-  <div id="rows"></div>
 </footer>
 
 <div id="ov"><div><p id="ovT">Importando…</p><progress id="pg" max="100" value="0"></progress><p><button id="ovC">Cancelar</button></p></div></div>
@@ -223,23 +236,23 @@ const P=()=>({size:SZ,op:$('#opa').value/100,smo:$('#smo').value/100});
 
 /* ---------- frames ---------- */
 function newFrame(bg=null){return{c:mk(W,H),bg}}
-function resetProject(w,h,fr){W=w;H=h;for(const c of [view,sc,tint]){c.width=W;c.height=H}frames=fr;clips=[];cur=0;undo.length=redo.length=0;$('#empty').style.display='none';fit();build();render();requestAnimationFrame(fit)}
+function resetProject(w,h,fr){W=w;H=h;for(const c of [view,sc,tint]){c.width=W;c.height=H}frames=fr;cur=0;undo.length=redo.length=0;$('#empty').style.display='none';fit();build();render();requestAnimationFrame(fit)}
 function fit(){const s=$('#stage');if(!frames.length)return;const z=Math.min((s.clientWidth-48)/W,(s.clientHeight-48)/H,1);$('#zoom').value=Math.max(25,Math.min(300,Math.floor(z*100)));setZoom();s.scrollLeft=s.scrollTop=0}
 addEventListener('resize',()=>fit());
 function setZoom(){view.style.width=W*$('#zoom').value/100+'px';view.style.height=H*$('#zoom').value/100+'px'}
 $('#zoom').oninput=setZoom;
-function thumb(i){const cell=$('#frames').children[i];if(!cell)return;const t=cell.querySelector('canvas'),x=t.getContext('2d'),f=frames[i];x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);if(f.bg&&$('#showVid').checked){x.globalAlpha=.6;x.drawImage(f.bg,0,0,t.width,t.height);x.globalAlpha=1}x.drawImage(f.c,0,0,t.width,t.height);drawClips(x,i,t.width/W)}
+function thumb(i){const cell=$('#frames').children[i];if(!cell)return;const t=cell.querySelector('canvas'),x=t.getContext('2d'),f=frames[i];x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);if(f.bg&&$('#showVid').checked){x.globalAlpha=.6;x.drawImage(f.bg,0,0,t.width,t.height);x.globalAlpha=1}x.drawImage(f.c,0,0,t.width,t.height)}
 function build(){sel.clear();const box=$('#frames');box.innerHTML='';frames.forEach((f,i)=>{const d=document.createElement('div');d.className='cell';d.innerHTML='<b>'+(i+1)+'</b>';const t=mk(160,Math.round(160*H/W));d.append(t);d.onclick=e=>{if(e.ctrlKey||e.metaKey){sel.has(i)?sel.delete(i):sel.add(i);mark()}else if(e.shiftKey){for(let k=Math.min(cur,i);k<=Math.max(cur,i);k++)sel.add(k);mark()}else{sel.clear();go(i)}};box.append(d)});frames.forEach((_,i)=>thumb(i));mark()}
 function mark(){[...$('#frames').children].forEach((c,i)=>{c.classList.toggle('act',i===cur);c.classList.toggle('sel',sel.has(i))});$('#bPasteSel').textContent='Colar em selecionados ('+sel.size+')';$('#bPasteSel').disabled=!sel.size;const a=$('#frames').children[cur];if(a){const f=$('#frames'),l=a.offsetLeft-f.offsetLeft;if(l<f.scrollLeft)f.scrollLeft=l-8;else if(l+a.offsetWidth>f.scrollLeft+f.clientWidth)f.scrollLeft=l+a.offsetWidth-f.clientWidth+8};$('#info').textContent=frames.length?`Frame ${cur+1} / ${frames.length}`:'Sem frames'}
 function go(i){if(!frames.length)return;commitFloat();cur=Math.max(0,Math.min(frames.length-1,i));mark();render()}
-const sel=new Set();let G=0,fl=null,fd=null,clips=[],rowsMode=false,selClip=null,CID=0,DN=0;const CW=22;
+const sel=new Set();let G=0,fl=null,fd=null;
 function snap(){undo.push({i:cur,g:++G,d:frames[cur].c.getContext('2d').getImageData(0,0,W,H)});if(undo.length>80)undo.shift();redo.length=0}
-function swap(from,to){commitFloat();const e=from[from.length-1];if(!e)return;const g=++G;while(from.length&&from[from.length-1].g===e.g){const x=from.pop(),ne={i:x.i,g,d:frames[x.i].c.getContext('2d').getImageData(0,0,W,H)};if(x.clip){clips=clips.filter(k=>k!==x.clip);ne.reclip=x.clip}if(x.reclip){clips.push(x.reclip);ne.clip=x.reclip}to.push(ne);frames[x.i].c.getContext('2d').putImageData(x.d,0,0);thumb(x.i);cur=x.i}buildRows();mark();render()}
+function swap(from,to){commitFloat();const e=from[from.length-1];if(!e)return;const g=++G;while(from.length&&from[from.length-1].g===e.g){const x=from.pop();to.push({i:x.i,g,d:frames[x.i].c.getContext('2d').getImageData(0,0,W,H)});frames[x.i].c.getContext('2d').putImageData(x.d,0,0);thumb(x.i);cur=x.i}mark();render()}
 $('#bUndo').onclick=()=>swap(undo,redo);$('#bRedo').onclick=()=>swap(redo,undo);
 function need(){if(!frames.length){newProject();}return true}
 function newProject(){resetProject(960,540,[newFrame()])}
 $('#bNew').onclick=newProject;
-function addFrame(copy){need();snap();const f=newFrame();if(copy)f.c.getContext('2d').drawImage(frames[cur].c,0,0);frames.splice(cur+1,0,f);shiftClips(cur+1,1,copy);cur++;undo.length=0;build();render()}
+function addFrame(copy){need();snap();const f=newFrame();if(copy)f.c.getContext('2d').drawImage(frames[cur].c,0,0);frames.splice(cur+1,0,f);cur++;undo.length=0;build();render()}
 $('#bAdd').onclick=()=>addFrame($('#autoCp').checked);
 $('#bDup').onclick=()=>addFrame(true);
 $('#bCp').onclick=copyPrev;
@@ -248,11 +261,11 @@ $('#bCopy').onclick=()=>{if(!frames.length)return;clip=mk(W,H);clip.getContext('
 $('#bPaste').onclick=()=>{if(!clip||!frames.length)return;snap();const x=frames[cur].c.getContext('2d');x.clearRect(0,0,W,H);x.drawImage(clip,0,0);thumb(cur);render()};
 $('#bPasteSel').onclick=()=>{if(!clip){toast('Primeiro copie um frame (botão Copiar ou tecla C).');return}const idx=[...sel].sort((a,b)=>a-b);if(!idx.length)return;const g=++G,over=$('#pasteOver').checked;idx.forEach(i=>{const x=frames[i].c.getContext('2d');undo.push({i,g,d:x.getImageData(0,0,W,H)});if(!over)x.clearRect(0,0,W,H);x.drawImage(clip,0,0);thumb(i)});redo.length=0;render();toast('Colado em '+idx.length+' frames. Ctrl+Z desfaz tudo de uma vez.',3500)};
 $('#bClr').onclick=()=>{if(!frames.length)return;snap();frames[cur].c.getContext('2d').clearRect(0,0,W,H);thumb(cur);render()};
-$('#bDel').onclick=()=>{if(frames.length<2){$('#bClr').click();return}frames.splice(cur,1);shiftClips(cur,-1);cur=Math.min(cur,frames.length-1);undo.length=0;build();render()};
+$('#bDel').onclick=()=>{if(frames.length<2){$('#bClr').click();return}frames.splice(cur,1);cur=Math.min(cur,frames.length-1);undo.length=0;build();render()};
 
 /* ---------- renderização ---------- */
 function tinted(c,col){tx.globalCompositeOperation='source-over';tx.clearRect(0,0,W,H);tx.drawImage(c,0,0);tx.globalCompositeOperation='source-in';tx.fillStyle=col;tx.fillRect(0,0,W,H);return tint}
-function compose(x,i,o){const f=frames[i];x.fillStyle='#fff';x.fillRect(0,0,W,H);if(f.bg&&o.vid){x.globalAlpha=o.vo;x.drawImage(f.bg,0,0);x.globalAlpha=1}if(o.onion){const a=$('#onOp').value/100;for(let k=+$('#nPrev').value;k>=1;k--)if(frames[i-k]){x.globalAlpha=a*(1-(k-1)*.2);x.drawImage(tinted(frames[i-k].c,'#e11d48'),0,0)}for(let k=+$('#nNext').value;k>=1;k--)if(frames[i+k]){x.globalAlpha=a*(1-(k-1)*.2);x.drawImage(tinted(frames[i+k].c,'#16a34a'),0,0)}x.globalAlpha=1}x.drawImage(f.c,0,0);drawClips(x,i)}
+function compose(x,i,o){const f=frames[i];x.fillStyle='#fff';x.fillRect(0,0,W,H);if(f.bg&&o.vid){x.globalAlpha=o.vo;x.drawImage(f.bg,0,0);x.globalAlpha=1}if(o.onion){const a=$('#onOp').value/100;for(let k=+$('#nPrev').value;k>=1;k--)if(frames[i-k]){x.globalAlpha=a*(1-(k-1)*.2);x.drawImage(tinted(frames[i-k].c,'#e11d48'),0,0)}for(let k=+$('#nNext').value;k>=1;k--)if(frames[i+k]){x.globalAlpha=a*(1-(k-1)*.2);x.drawImage(tinted(frames[i+k].c,'#16a34a'),0,0)}x.globalAlpha=1}x.drawImage(f.c,0,0)}
 function render(){if(!frames.length)return;compose(vx,cur,{vid:$('#showVid').checked,vo:$('#vidOp').value/100,onion:$('#onion').checked&&!playing});if(drawing&&tool!=='eraser'&&tool!=='fill'){vx.globalAlpha=P().op;vx.drawImage(sc,0,0);vx.globalAlpha=1}if(fl&&fl.i===cur)drawFl()}
 ['showVid','vidOp','onion','nPrev','nNext','onOp'].forEach(id=>$('#'+id).addEventListener('input',()=>{render();if(id==='showVid')frames.forEach((_,i)=>thumb(i))}));
 
@@ -279,7 +292,7 @@ x.putImageData(img,0,0);thumb(cur);render()}
 function pick(p){const x=mk(W,H).getContext('2d');compose(x,cur,{vid:$('#showVid').checked,vo:$('#vidOp').value/100,onion:false});const d=x.getImageData(Math.floor(p.x),Math.floor(p.y),1,1).data;setColor('#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join(''))}
 
 /* ---------- objeto flutuante (Ctrl+clique) ---------- */
-function lift(p,copy){const hc=clipAt(p,cur);if(hc){liftClip(hc,p);return}const x=frames[cur].c.getContext('2d'),img=x.getImageData(0,0,W,H),d=img.data;let st=-1,best=1e9;const R=14,px=Math.round(p.x),py=Math.round(p.y);
+function lift(p,copy){const x=frames[cur].c.getContext('2d'),img=x.getImageData(0,0,W,H),d=img.data;let st=-1,best=1e9;const R=14,px=Math.round(p.x),py=Math.round(p.y);
 for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){const X=px+dx,Y=py+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(d[q*4+3]>0){const m=dx*dx+dy*dy;if(m<best){best=m;st=q}}}
 if(st<0){toast('Não há desenho ali. Use Ctrl+clique em cima de um traço ou de uma cor.',3500);return}
 const seen=new Uint8Array(W*H),list=[st],stack=[st];seen[st]=1;let x0=W,y0=H,x1=0,y1=0;
@@ -294,12 +307,8 @@ if(Math.hypot(lx-fl.w/2,ly-fl.h/2)<=hr)return 'scale';if(Math.hypot(lx,ly+fl.h/2
 function drawFl(){const u=W/view.clientWidth,k=u/fl.s;vx.save();vx.translate(fl.cx,fl.cy);vx.rotate(fl.r);vx.scale(fl.s,fl.s);vx.drawImage(fl.c,-fl.w/2,-fl.h/2);
 vx.lineWidth=1.5*k;vx.strokeStyle='#7c5cff';vx.setLineDash([6*k,4*k]);vx.strokeRect(-fl.w/2,-fl.h/2,fl.w,fl.h);vx.setLineDash([]);vx.beginPath();vx.moveTo(0,-fl.h/2);vx.lineTo(0,-fl.h/2-30*k);vx.stroke();
 vx.fillStyle='#fff';[[0,-fl.h/2-30*k],[fl.w/2,fl.h/2]].forEach(([a,b])=>{vx.beginPath();vx.arc(a,b,7*k,0,6.28);vx.fill();vx.stroke()});vx.restore()}
-function commitFloat(){if(!fl)return;const i=fl.i,c=fl.clip;
-if(c){c.hidden=false;const mv=Math.abs(c.cx-fl.cx)>.5||Math.abs(c.cy-fl.cy)>.5||Math.abs(c.s-fl.s)>.001||Math.abs(c.r-fl.r)>.001;
-if(mv){if(c.a<i){const n={...c,id:++CID,a:i,cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r,hidden:false,name:c.base+' · pos '+(++c.cnt.v)};c.b=i-1;clips.push(n);selClip=n}else{c.cx=fl.cx;c.cy=fl.cy;c.s=fl.s;c.r=fl.r}}}
-else{const n={id:++CID,c:fl.c,w:fl.w,h:fl.h,cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r,a:i,b:i,cnt:{v:1},base:'Desenho '+(++DN),hue:(CID*67)%360};n.name=n.base;clips.push(n);selClip=n;if(undo.length)undo[undo.length-1].clip=n}
-fl=null;fd=null;thumb(i);buildRows();render()}
-function cancelFl(){if(fl.clip){fl.clip.hidden=false;fl=null;fd=null;render();return}const e=undo.pop();if(e&&e.i===fl.i)frames[e.i].c.getContext('2d').putImageData(e.d,0,0);fl=null;fd=null;thumb(cur);render()}
+function commitFloat(){if(!fl)return;const x=frames[fl.i].c.getContext('2d'),i=fl.i;x.save();x.translate(fl.cx,fl.cy);x.rotate(fl.r);x.scale(fl.s,fl.s);x.drawImage(fl.c,-fl.w/2,-fl.h/2);x.restore();fl=null;fd=null;thumb(i);render()}
+function cancelFl(){const e=undo.pop();if(e&&e.i===fl.i)frames[e.i].c.getContext('2d').putImageData(e.d,0,0);fl=null;fd=null;thumb(cur);render()}
 document.addEventListener('pointerdown',e=>{if(fl&&e.target!==view)commitFloat()},true);
 view.addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('keydown',e=>{if(e.key==='Control'||e.key==='Meta')view.style.cursor='cell'});
@@ -366,40 +375,7 @@ try{for(let i=0;i<total&&!cancel;i++){await seek(v,Math.min(i/f,Math.max(0,v.dur
 catch(err){toast('Erro ao extrair os frames: '+(err.message||err))}
 finally{$('#ov').style.display='none';v.remove()}
 if(!out.length)return;resetProject(w,h,out);toast(out.length+' frames importados. Desenhe por cima do vídeo!',4000)};
-/* ---------- timeline em linhas (cada objeto = uma linha) ---------- */
-function clipAt(p,i){for(let k=clips.length-1;k>=0;k--){const c=clips[k];if(c.hidden||i<c.a||i>c.b)continue;const co=Math.cos(c.r),si=Math.sin(c.r),dx=p.x-c.cx,dy=p.y-c.cy,lx=Math.round((dx*co+dy*si)/c.s+c.w/2),ly=Math.round((-dx*si+dy*co)/c.s+c.h/2);if(lx<0||ly<0||lx>=c.w||ly>=c.h)continue;if(c.c.getContext('2d').getImageData(lx,ly,1,1).data[3]>10)return c}return null}
-function drawClips(x,i,k=1){for(const c of clips){if(c.hidden||i<c.a||i>c.b)continue;x.save();x.translate(c.cx*k,c.cy*k);x.rotate(c.r);x.scale(c.s*k,c.s*k);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}}
-function liftClip(c,p){c.hidden=true;fl={i:cur,c:c.c,w:c.w,h:c.h,cx:c.cx,cy:c.cy,s:c.s,r:c.r,clip:c};fd={m:'move',sx:p.x,sy:p.y,cx:c.cx,cy:c.cy,s:c.s,r:c.r,d0:1};render();toast('Mova o objeto: ao soltar em outra posição, ele vira uma nova linha na timeline a partir deste frame.',5000)}
-function shiftClips(at,d,dup){if(d>0){clips.forEach(c=>{if(c.a>=at)c.a++;if(c.b>=at)c.b++;else if(dup&&c.b===at-1)c.b++})}else{clips=clips.filter(c=>{if(c.a>at)c.a--;if(c.b>=at)c.b--;return c.b>=c.a})}}
-function bake(c){if(!c)return;commitFloat();for(let i=c.a;i<=c.b;i++){const x=frames[i].c.getContext('2d');x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}clips=clips.filter(k=>k!==c);undo.length=0;frames.forEach((_,i)=>thumb(i));buildRows();render();toast('Objeto fixado no desenho.',2500)}
-function buildRows(){if(!rowsMode)return;const n=frames.length,wd=n*CW;
-let h='<div id="rin" style="width:'+(130+wd)+'px"><div class="rw"><div class="rl">Frames</div><div class="rt rn" style="width:'+wd+'px">';
-for(let i=0;i<n;i+=5)h+='<span style="left:'+i*CW+'px">'+(i+1)+'</span>';
-h+='</div></div><div class="rw"><div class="rl">Base (vídeo + pincel)</div><div class="rt" style="width:'+wd+'px"><div class="bar base" style="left:0;width:'+wd+'px">desenho à mão + vídeo</div></div></div>';
-clips.forEach(c=>{h+='<div class="rw"><div class="rl" title="'+c.name+'"><span class="dot" style="background:hsl('+c.hue+',65%,50%)"></span><em>'+c.name+'</em><b data-bake="'+c.id+'" title="Fixar no desenho">▣</b><b data-del="'+c.id+'" title="Excluir linha">✕</b></div><div class="rt" style="width:'+wd+'px"><div class="bar'+(c===selClip?' sel':'')+'" data-id="'+c.id+'" style="left:'+c.a*CW+'px;width:'+(c.b-c.a+1)*CW+'px;background:hsl('+c.hue+',65%,46%)"><i class="l"></i>'+c.name+'<i class="r"></i></div></div></div>'});
-if(!clips.length)h+='<div class="rw"><div class="rl" style="width:auto;border:0;background:none;color:var(--mu)">Ctrl+clique num desenho do frame para criar uma linha</div></div>';
-R$().innerHTML=h+'<div class="ph" id="ph"></div></div>';updPh()}
-function R$(){return $('#rows')}
-function updPh(){const p=$('#ph');if(p)p.style.left=(130+cur*CW+CW/2-1)+'px'}
-let rd=null;
-R$().addEventListener('pointerdown',e=>{const t=e.target,d=t.dataset||{};
-if(d.del){clips=clips.filter(c=>c.id!=d.del);frames.forEach((_,i)=>thumb(i));buildRows();render();return}
-if(d.bake){bake(clips.find(c=>c.id==d.bake));return}
-const bar=t.closest('.bar[data-id]'),tr=t.closest('.rt'),n=frames.length;if(!tr)return;
-const fr=ev=>Math.max(0,Math.min(n-1,Math.floor((ev.clientX-tr.getBoundingClientRect().left)/CW)));
-if(bar){const c=clips.find(c=>c.id==bar.dataset.id);selClip=c;rd={c,m:t.classList.contains('l')?'l':t.classList.contains('r')?'r':'m',x:e.clientX,a:c.a,b:c.b};go(fr(e));$('#rows').querySelectorAll('.bar').forEach(b=>b.classList.toggle('sel',b===bar))}
-else{rd={scrub:tr};go(fr(e))}
-R$().setPointerCapture(e.pointerId)});
-R$().addEventListener('pointermove',e=>{if(!rd)return;const n=frames.length;
-if(rd.scrub){go(Math.max(0,Math.min(n-1,Math.floor((e.clientX-rd.scrub.getBoundingClientRect().left)/CW))));return}
-const df=Math.round((e.clientX-rd.x)/CW),c=rd.c;
-if(rd.m==='l')c.a=Math.max(0,Math.min(rd.b,rd.a+df));else if(rd.m==='r')c.b=Math.min(n-1,Math.max(rd.a,rd.b+df));else{const w=rd.b-rd.a,a=Math.max(0,Math.min(n-1-w,rd.a+df));c.a=a;c.b=a+w}
-const bar=R$().querySelector('.bar[data-id="'+c.id+'"]');if(bar){bar.style.left=c.a*CW+'px';bar.style.width=(c.b-c.a+1)*CW+'px'}render()});
-const rup=()=>{if(!rd)return;const was=!rd.scrub;rd=null;if(was){frames.forEach((_,i)=>thumb(i));render()}};
-R$().addEventListener('pointerup',rup);R$().addEventListener('pointercancel',rup);
-$('#bView').onclick=()=>{commitFloat();rowsMode=!rowsMode;$('#rows').classList.toggle('on',rowsMode);$('#frames').style.display=rowsMode?'none':'';$('#bView').textContent=rowsMode?'Vista: Linhas':'Vista: Frames';$('#bView').classList.toggle('on',rowsMode);buildRows()};
-{const m0=mark;mark=function(){m0();updPh()}}
-{const b0=build;build=function(){b0();buildRows()}}
+
 /* ---------- exportar ---------- */
 async function save(name,blob){let d=null;try{if(window.claude&&claude.use)d=await claude.use('downloads')}catch(e){}
 if(d){try{await d.save({filename:name,data:blob})}catch(err){if(err&&err.code!=='declined')alert('Não foi possível salvar: '+(err.message||err.code))}return}
@@ -445,7 +421,7 @@ save('animacao.'+out.ext,out.blob)};
 addEventListener('keydown',e=>{if(/INPUT|SELECT/.test(e.target.tagName)&&e.target.type!=='checkbox'&&e.target.type!=='range')return;const k=e.key.toLowerCase();
 if((e.ctrlKey||e.metaKey)&&k==='z'){e.preventDefault();e.shiftKey?$('#bRedo').click():$('#bUndo').click();return}
 if((e.ctrlKey||e.metaKey)&&k==='y'){e.preventDefault();$('#bRedo').click();return}
-if(fl){if(k==='enter'){commitFloat();return}if(k==='escape'){cancelFl();return}if(k==='delete'||k==='backspace'){if(fl.clip)clips=clips.filter(c=>c!==fl.clip);fl=null;fd=null;thumb(cur);buildRows();render();return}
+if(fl){if(k==='enter'){commitFloat();return}if(k==='escape'){cancelFl();return}if(k==='delete'||k==='backspace'){fl=null;fd=null;thumb(cur);render();return}}
 if((e.ctrlKey||e.metaKey)&&e.shiftKey&&k==='v'){e.preventDefault();$('#bPasteSel').click();return}
 if(k==='escape'){sel.clear();mark();return}
 if(e.ctrlKey||e.metaKey)return;
@@ -453,6 +429,166 @@ const m={b:'brush',e:'eraser',g:'fill',i:'pick',l:'line',r:'rect',o:'ellipse'};i
 if(k==='arrowleft'){e.preventDefault();go(cur-1)}else if(k==='arrowright'){e.preventDefault();go(cur+1)}
 else if(k===' '){e.preventDefault();$('#bPlay').click()}else if(k==='n')$('#bAdd').click();else if(k==='d')$('#bDup').click();
 else if(k==='x')copyPrev();else if(k==='[')setSize(SZ-2);else if(k===']')setSize(SZ+2);else if(k==='c')$('#bCopy').click();else if(k==='v')$('#bPaste').click();else if(k==='delete')$('#bDel').click()});
+</script>
+<script>
+/* ===== Visualização em timeline (acréscimo) =====
+   Linhas: Vídeo · Desenho base (um quadro por coluna) · uma linha nova para cada desenho
+   que você move (Ctrl+clique no desenho, arraste, confirme). Tecla T alterna. */
+(function(){
+const LAB=132;
+let on=false,CW=40,busy=false,tracks=[],cnt=0,last=-1,selWas=false;
+const btn=document.createElement('button');btn.id='bTlv';btn.textContent='☰ Timeline';btn.title='Alternar entre a faixa de frames e a timeline em linhas (T)';
+$('#bNext').after(btn);
+const box=document.createElement('div');box.id='tlv';
+box.innerHTML='<div id="tlvIn" style="--cw:40px"><div id="tlvH" class="tlr"><div class="tll"><b>Frames</b><input id="tlvZ" type="range" min="16" max="90" value="40" title="Zoom da timeline" aria-label="Zoom da timeline"></div><div class="tlt" id="tlvRu"></div></div><div id="tlvVid"></div><div id="tlvBase"></div><div id="tlvObj"></div><div id="tlvPh"></div></div>';
+$('#frames').after(box);
+const ru=$('#tlvRu'),tmp=mk(160,90);
+const dims=()=>{const cw=Math.max(10,CW-2);return{cw,ch:Math.max(6,Math.round(cw*H/W))}};
+function clickFrame(i,e){const o=$('#frames').children[i];if(o&&o.onclick)o.onclick(e);else go(i)}
+
+/* ---------- régua: clique/arraste para navegar ---------- */
+const scrub=e=>{if(!frames.length)return;const r=ru.getBoundingClientRect();if(playing)stop();go(Math.floor((e.clientX-r.left)/CW))};
+ru.addEventListener('pointerdown',e=>{ru.setPointerCapture(e.pointerId);scrub(e)});
+ru.addEventListener('pointermove',e=>{if(e.buttons&1)scrub(e)});
+$('#tlvZ').oninput=e=>{CW=+e.target.value;if(on)tlvBuild()};
+
+/* ---------- desenho das linhas ---------- */
+function tlvThumb(i){const row=$('#tlvBase .tcs'),d=row&&row.children[i];if(!d||!frames[i])return;
+const c=d.firstChild,x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+tmp.width=160;tmp.height=Math.max(1,Math.round(160*H/W));const t=tmp.getContext('2d');t.imageSmoothingQuality='high';t.drawImage(frames[i].c,0,0,tmp.width,tmp.height);
+x.imageSmoothingQuality='high';x.drawImage(tmp,0,0,c.width,c.height)}
+function tlvBuild(){
+const n=frames.length,{cw,ch}=dims(),w=n*CW;last=-1;selWas=true;
+$('#tlvIn').style.setProperty('--cw',CW+'px');
+const step=CW>=34?1:CW>=22?2:5;ru.style.width=w+'px';ru.textContent='';
+for(let i=0;i<n;i++){const t=document.createElement('i');if(i===0||(i+1)%step===0)t.textContent=i+1;t.title='Frame '+(i+1)+' · '+(i/fps()).toFixed(2)+' s';ru.append(t)}
+const vr=$('#tlvVid');
+if(frames.some(f=>f.bg)){vr.className='tlr';vr.innerHTML='<div class="tll"><span class="chip" style="background:var(--ac)"></span><b>Vídeo</b></div><div class="tlt" style="width:'+w+'px"><div class="bar"><span>vídeo importado · '+frames.filter(f=>f.bg).length+' frames</span></div></div>'}
+else{vr.className='';vr.textContent=''}
+const br=$('#tlvBase');br.className='tlr';br.innerHTML='<div class="tll"><span class="chip" style="background:var(--ok)"></span><b>Desenho base</b></div>';
+const tt=document.createElement('div');tt.className='tlt tcs';tt.style.width=w+'px';
+for(let i=0;i<n;i++){const d=document.createElement('div');d.className='tc';d.style.width=CW+'px';d.title='Frame '+(i+1);const c=mk(cw,ch);c.style.width=cw+'px';c.style.height=ch+'px';d.append(c);d.onclick=e=>clickFrame(i,e);tt.append(d)}
+br.append(tt);for(let i=0;i<n;i++)tlvThumb(i);
+tlvObj();tlvMark()}
+function tlvObj(){
+for(let k=tracks.length-1;k>=0;k--){const t=tracks[k];if((t.off&&!redo.some(x=>x.g===t.g))||!t.clips.some(c=>frames.includes(c.fr)))tracks.splice(k,1)}
+const o=$('#tlvObj');o.textContent='';if(!on)return;
+const {cw,ch}=dims(),n=frames.length,idx=new Map(frames.map((f,i)=>[f,i])),vis=tracks.filter(t=>!t.off);
+if(!vis.length){o.innerHTML='<div class="tlr tlhint"><div class="tll"></div><div class="tlt" style="width:'+n*CW+'px"><span>Mova um desenho (Ctrl+clique nele, arraste, Enter) e ele vira uma nova linha aqui.</span></div></div>';return}
+vis.forEach(t=>{const col='hsl('+t.hue+',75%,52%)',r=document.createElement('div');r.className='tlr';r.style.height=(ch+8)+'px';
+const l=document.createElement('div');l.className='tll';l.innerHTML='<span class="chip"></span><b></b><button class="x" title="Remover da timeline (não apaga o desenho)">×</button>';
+l.querySelector('.chip').style.background=col;const nm=l.querySelector('b');nm.textContent=t.name;nm.title='Duplo clique para renomear';
+nm.ondblclick=()=>{const v=prompt('Nome da linha:',t.name);if(v&&v.trim()){t.name=v.trim();nm.textContent=t.name}};
+l.querySelector('.x').onclick=()=>{tracks.splice(tracks.indexOf(t),1);tlvObj()};
+const tt=document.createElement('div');tt.className='tlt';tt.style.width=n*CW+'px';
+t.clips.forEach(c=>{const i=idx.get(c.fr);if(i==null)return;const d=document.createElement('div');d.className='clip';d.style.cssText='left:'+(i*CW+1)+'px;width:'+cw+'px;height:'+(ch+2)+'px;border-color:'+col;
+const k=mk(cw-2,ch),x=k.getContext('2d'),s=Math.min((k.width-2)/c.w,(k.height-2)/c.h);x.imageSmoothingQuality='high';x.drawImage(c.c,(k.width-c.w*s)/2,(k.height-c.h*s)/2,c.w*s,c.h*s);d.append(k);
+d.title=t.name+' · frame '+(i+1)+'\nposição '+Math.round(c.cx)+', '+Math.round(c.cy)+' · tamanho '+Math.round(c.s*100)+'% · rotação '+Math.round(c.r*180/Math.PI)+'°';
+d.onclick=e=>clickFrame(i,e);tt.append(d)});
+r.append(l,tt);o.append(r)})}
+function tlvMark(){
+if(!on)return;const n=frames.length,ph=$('#tlvPh');ph.style.display=n?'block':'none';ph.style.left=(LAB+cur*CW)+'px';
+const rc=ru.children;if(rc[last])rc[last].classList.remove('cur');if(rc[cur])rc[cur].classList.add('cur');
+const bc=$('#tlvBase .tcs');
+if(bc){if(bc.children[last])bc.children[last].classList.remove('act');if(bc.children[cur])bc.children[cur].classList.add('act');
+if(sel.size||selWas){[...bc.children].forEach((c,i)=>c.classList.toggle('sel',sel.has(i)));selWas=sel.size>0}}
+last=cur;
+const s=box;if(cur*CW<s.scrollLeft)s.scrollLeft=Math.max(0,cur*CW-8);else if(LAB+(cur+1)*CW>s.scrollLeft+s.clientWidth)s.scrollLeft=LAB+(cur+1)*CW-s.clientWidth+8}
+function toggle(v){on=v===undefined?!on:v;document.body.classList.toggle('tlv-on',on);btn.classList.toggle('on',on);if(on)tlvBuild()}
+btn.onclick=()=>toggle();
+addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();toggle()}});
+
+/* ---------- ganchos: acompanham o que o editor já faz, sem alterar o comportamento ---------- */
+const _build=build,_mark=mark,_thumb=thumb,_reset=resetProject,_lift=lift,_commit=commitFloat,_swap=swap;
+build=function(){busy=true;try{_build.apply(this,arguments)}finally{busy=false}if(on)tlvBuild()};
+mark=function(){_mark.apply(this,arguments);if(on&&!busy)tlvMark()};
+thumb=function(i){_thumb.apply(this,arguments);if(on&&!busy)tlvThumb(i)};
+resetProject=function(){tracks.length=0;cnt=0;return _reset.apply(this,arguments)};
+/* ao levantar um desenho (Ctrl+clique) guardamos a posição original */
+lift=function(p,copy){const before=fl;_lift.apply(this,arguments);if(fl&&fl!==before){fl.o={cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r};fl.g=G}};
+/* ao confirmar, se o desenho mudou de posição/tamanho/rotação → vira uma linha nova */
+commitFloat=function(){const f=fl;let t=null;
+if(f&&f.o&&(Math.hypot(f.cx-f.o.cx,f.cy-f.o.cy)>.5||Math.abs(f.s-1)>.001||Math.abs(f.r)>.001)&&frames[f.i]){cnt++;
+t={name:'Objeto '+cnt,hue:(cnt*47+200)%360,g:f.g,off:false,clips:[{fr:frames[f.i],c:f.c,w:f.w,h:f.h,cx:f.cx,cy:f.cy,s:f.s,r:f.r}]}}
+_commit.apply(this,arguments);
+if(t){tracks.push(t);if(on)tlvObj();else toast('Nova linha na timeline: '+t.name+' (tecla T abre a timeline)',3500)}};
+/* desfazer/refazer escondem/mostram a linha correspondente */
+swap=function(from,to){commitFloat();const e=from[from.length-1],ts=e?tracks.filter(t=>t.g===e.g):[];_swap.apply(this,arguments);
+if(e&&ts.length){const n=to[to.length-1];ts.forEach(t=>{t.off=from===undo;t.g=n?n.g:null});tlvObj()}};
+})();
+</script>
+<script>
+/* ===== Importação de vídeo universal (acréscimo) =====
+   1) tenta separar frame por frame com o próprio navegador (rápido);
+   2) se os quadros saírem pretos/repetidos, refaz capturando durante a reprodução;
+   3) se o navegador não abrir o arquivo (ex.: iPhone MOV/HEVC, MKV...), usa o ffmpeg dentro da página
+      para decodificar qualquer vídeo e separar todos os frames. */
+(function(){
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function seekTo(v,t){return new Promise(r=>{let d=false;const fin=()=>{if(d)return;d=true;v.removeEventListener('seeked',fin);clearTimeout(to);r()};
+const to=setTimeout(fin,3000);v.addEventListener('seeked',fin);if(Math.abs(v.currentTime-t)<.0005){fin();return}v.currentTime=t})}
+async function painted(v){const t0=performance.now();while(v.readyState<2&&performance.now()-t0<1500)await sleep(20);await new Promise(r=>requestAnimationFrame(r));await sleep(12)}
+function sig(c){const s=mk(16,9),x=s.getContext('2d');x.drawImage(c,0,0,16,9);const d=x.getImageData(0,0,16,9).data;let a=0,b=0;for(let i=0;i<d.length;i+=4){a+=d[i]+d[i+1]+d[i+2];b+=d[i+3]}return[a,b]}
+function looksBroken(out,dur){if(out.length<3||dur<.5)return false;const ix=[0,Math.floor(out.length/3),Math.floor(out.length*2/3),out.length-1].map(i=>sig(out[i].bg));
+if(ix.every(s=>s[1]===0))return true;const a=ix.map(s=>s[0]);return Math.max(...a)-Math.min(...a)<40}
+async function bySeek(v,w,h,f,total,txt){const out=[];
+for(let i=0;i<total&&!cancel;i++){await seekTo(v,Math.min(i/f,Math.max(0,v.duration-.05)));await painted(v);const bg=mk(w,h);bg.getContext('2d').drawImage(v,0,0,w,h);out.push({c:mk(w,h),bg});$('#pg').value=i/total*100;$('#ovT').textContent=txt+' '+(i+1)+' de '+total+'…'}
+return out}
+function byPlay(v,w,h,f,total,txt){return new Promise(async(res,rej)=>{const out=[];let next=0,fin=false,lastProg=performance.now();
+const end=()=>{if(fin)return;fin=true;clearInterval(wd);v.pause();res(out)};
+const grab=t=>{while(next<total&&t>=next/f-.001){const bg=mk(w,h);bg.getContext('2d').drawImage(v,0,0,w,h);out.push({c:mk(w,h),bg});next++;lastProg=performance.now()}
+$('#pg').value=next/total*100;$('#ovT').textContent=txt+' '+Math.min(next+1,total)+' de '+total+'…'};
+const wd=setInterval(()=>{if(cancel||v.ended||next>=total)end();else if(performance.now()-lastProg>8000){fin=true;clearInterval(wd);v.pause();out.length?res(out):rej(new Error('o navegador não reproduziu o vídeo'))}},250);
+const step=(now,meta)=>{if(fin)return;grab(meta&&meta.mediaTime!=null?meta.mediaTime:v.currentTime);if(next>=total||cancel)end();else sched()};
+const sched=()=>v.requestVideoFrameCallback?v.requestVideoFrameCallback(step):requestAnimationFrame(step);
+v.style.cssText='position:fixed;left:0;top:0;width:64px;height:36px;opacity:.01;pointer-events:none;z-index:-1';
+v.muted=true;v.playsInline=true;v.playbackRate=1;try{await seekTo(v,0)}catch(e){}
+try{await v.play()}catch(e){fin=true;clearInterval(wd);return rej(new Error('o navegador bloqueou a reprodução'))}
+v.onended=()=>{if(!fin){grab(v.duration||1e9);end()}};sched()})}
+
+/* ---------- conversor embutido (ffmpeg.wasm): abre MOV/HEVC do iPhone, MKV, AVI etc. ---------- */
+async function viaFfmpeg(file){
+cancel=false;$('#pg').value=0;$('#ovT').textContent='Baixando o conversor de vídeo (≈30 MB, só na primeira vez)…';$('#ov').style.display='grid';
+let ff=null,out=[],w=0,h=0;
+try{
+if(file.size>1.5e9)throw new Error('o arquivo tem mais de 1,5 GB; corte o vídeo antes de importar');
+if(!window.FFmpeg){try{await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js')}catch(e){throw new Error('não consegui baixar o conversor; verifique sua internet')}}
+ff=FFmpeg.createFFmpeg({log:false,corePath:'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',progress:p=>{if(p&&p.ratio>=0&&p.ratio<=1&&$('#ovT').dataset.ff){$('#pg').value=p.ratio*100}}});
+await ff.load();if(cancel)return;
+$('#ovT').textContent='Lendo o arquivo…';
+const ext=((file.name.match(/\.([a-z0-9]{2,5})$/i)||[])[1]||'mov').toLowerCase(),inName='entrada.'+ext;
+ff.FS('writeFile',inName,new Uint8Array(await file.arrayBuffer()));if(cancel)return;
+const f=fps();$('#ovT').dataset.ff='1';$('#ovT').textContent='Separando os frames (pode levar um tempo em vídeos longos ou 4K)…';
+const k='min(1\\,min(960/iw\\,720/ih))';
+await ff.run('-i',inName,'-an','-vf','fps='+f+',scale=w=trunc(iw*'+k+'/2)*2:h=trunc(ih*'+k+'/2)*2','-frames:v','600','-q:v','3','f%04d.jpg');
+delete $('#ovT').dataset.ff;
+try{ff.FS('unlink',inName)}catch(e){}
+const names=ff.FS('readdir','/').filter(n=>/^f\d{4}\.jpg$/.test(n)).sort();
+if(!names.length)throw new Error('o conversor não conseguiu decodificar o vídeo');
+for(let i=0;i<names.length&&!cancel;i++){const data=ff.FS('readFile',names[i]);ff.FS('unlink',names[i]);
+const bmp=await createImageBitmap(new Blob([data],{type:'image/jpeg'}));if(!w){w=bmp.width;h=bmp.height}
+const bg=mk(w,h);bg.getContext('2d').drawImage(bmp,0,0,w,h);if(bmp.close)bmp.close();out.push({c:mk(w,h),bg});
+$('#pg').value=i/names.length*100;$('#ovT').textContent='Montando frame '+(i+1)+' de '+names.length+'…'}
+}catch(err){console.error(err);toast('Não consegui importar esse vídeo: '+(err&&err.message||err),12000)}
+finally{delete $('#ovT').dataset.ff;$('#ov').style.display='none';try{ff&&ff.exit()}catch(e){}}
+if(!out.length)return;resetProject(w,h,out);
+toast(out.length+' frames importados'+(out.length>=600?' (limite de 600)':'')+'. Desenhe por cima do vídeo!',4500)}
+
+$('#fVid').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;
+toast('Carregando vídeo…',4000);let v;
+try{v=await loadVideo(file)}catch(err){toast('O navegador não abre esse formato direto'+(file.type?' ('+file.type+')':'')+'. Usando o conversor embutido…',6000);return viaFfmpeg(file)}
+if(!isFinite(v.duration)){try{await seekTo(v,1e7);await seekTo(v,0)}catch(e){}}
+if(!v.videoWidth||!isFinite(v.duration)||v.duration<=0){v.remove();toast('Usando o conversor embutido…',5000);return viaFfmpeg(file)}
+const k=Math.min(1,960/v.videoWidth,720/v.videoHeight),w=Math.round(v.videoWidth*k/2)*2,h=Math.round(v.videoHeight*k/2)*2,f=fps(),total=Math.max(1,Math.min(Math.floor(v.duration*f),600));
+cancel=false;$('#pg').value=0;$('#ovT').textContent='Preparando…';$('#ov').style.display='grid';let out=[],how='seek';
+try{out=await bySeek(v,w,h,f,total,'Extraindo frame')}catch(err){out=[]}
+if(!cancel&&(!out.length||looksBroken(out,v.duration))){how='play';$('#ovT').textContent='Refazendo pela reprodução…';try{out=await byPlay(v,w,h,f,total,'Capturando frame')}catch(err){out=[]}}
+if(!cancel&&(!out.length||looksBroken(out,v.duration)))out=[];
+$('#ov').style.display='none';v.remove();
+if(!out.length){if(cancel)return;toast('O navegador não decodificou esse vídeo direito. Usando o conversor embutido…',5000);return viaFfmpeg(file)}
+resetProject(w,h,out);
+toast(out.length+' frames importados'+(out.length>=600?' (limite de 600)':'')+(how==='play'?' pelo modo de reprodução':'')+'. Desenhe por cima do vídeo!',4500)};
+})();
 </script>
 </body>
 </html>
