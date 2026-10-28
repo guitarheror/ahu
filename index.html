@@ -193,7 +193,7 @@ body.tlv-on #bar .tlvOnly{display:inline-flex}
     <div class="g"><h2>Vídeo de fundo</h2>
       <label class="row"><input id="showVid" type="checkbox" checked> Mostrar vídeo</label>
       <div class="row"><span>Opacidade</span><input id="vidOp" type="range" min="0" max="100" value="60"></div></div>
-    <div id="hint">B pincel · E borracha · G balde · I conta-gotas · L linha · R retângulo · O elipse · ←/→ frames · Espaço reproduz · X copia o anterior · Alt+arrastar move a tela · [ e ] mudam o tamanho do pincel · Ctrl+clique num desenho do frame o transforma em objeto móvel (Ctrl+Shift copia) · Ctrl+clique nos frames seleciona vários (Esc limpa)</div>
+    <div id="hint">B pincel · E borracha · G balde · I conta-gotas · L linha · R retângulo · O elipse · ←/→ frames · Espaço reproduz · X copia o anterior · Alt+arrastar move a tela · [ e ] mudam o tamanho do pincel · Ctrl+clique em qualquer objeto, em qualquer frame, para mover/girar/redimensionar (Ctrl+Shift copia) · Delete exclui o objeto selecionado · "Separar em objetos" transforma o desenho do frame em objetos · Ctrl+clique nos frames seleciona vários (Esc limpa)</div>
   </aside>
 </main>
 
@@ -447,169 +447,163 @@ else if(k===' '){e.preventDefault();$('#bPlay').click()}else if(k==='n')$('#bAdd
 else if(k==='x')copyPrev();else if(k==='[')setSize(SZ-2);else if(k===']')setSize(SZ+2);else if(k==='c')$('#bCopy').click();else if(k==='v')$('#bPaste').click();else if(k==='delete')$('#bDel').click()});
 </script>
 <script>
-/* ===== Visualização em timeline (acréscimo) =====
-   Linhas: Vídeo · Desenho base (um quadro por coluna) · uma linha nova para cada desenho
-   que você move (Ctrl+clique no desenho, arraste, confirme). Tecla T alterna. */
+/* ===== Timeline de objetos =====
+   Tudo é objeto: cada objeto é uma linha; em cada frame ele tem uma instância real
+   (Ctrl+clique em qualquer frame seleciona/move; Delete exclui). Não existe mais "desenho base". */
 (function(){
 const LAB=132;
-let on=false,CW=40,busy=false,tracks=[],cnt=0,last=-1,selWas=false,holds=[],bars=new Map(),showTh=true,csel=new Set(),cclip=[],clipEls=new Map();
-const btn=document.createElement('button');btn.id='bTlv';btn.textContent='☰ Timeline';btn.title='Alternar entre a faixa de frames e a timeline em linhas (T)';
-$('#bNext').after(btn);
-const lbTh=document.createElement('label');lbTh.className='tlvOnly';lbTh.innerHTML='<input id="tlvTh" type="checkbox" checked> Frames na timeline';lbTh.title='Desmarque para ver o desenho base e os objetos só como linhas, sem miniaturas por frame';
-const bCp=document.createElement('button');bCp.id='bTlvCopy';bCp.className='tlvOnly';bCp.textContent='Copiar objeto';bCp.disabled=true;bCp.title='Clique num objeto da timeline (Shift+clique para vários) e copie. Atalho: Ctrl+C';
-const bPs=document.createElement('button');bPs.id='bTlvPaste';bPs.className='tlvOnly';bPs.textContent='Colar objeto';bPs.disabled=true;bPs.title='Cola no frame atual (clique num frame da timeline para escolher onde). Atalho: Ctrl+V';
-btn.after(lbTh,bCp,bPs);
+let on=false,CW=40,busy=false,tracks=[],cnt=0,last=-1,showTh=true,csel=new Set(),cclip=[],clipEls=new Map();
+const sts=new Map(),cp=a=>a.map(t=>({...t,clips:t.clips.map(c=>({...c}))})),cloneT=()=>cp(tracks),setT=a=>{tracks=cp(a);csel.clear()};
+document.head.append(Object.assign(document.createElement('style'),{textContent:'#tlvRu i.sel{box-shadow:inset 0 -3px var(--ac)}#tlv .gh{position:absolute;top:0;bottom:0;border:1px dashed var(--ok);background:color-mix(in srgb,var(--ok) 15%,transparent);pointer-events:none;z-index:1}'}));
+const btn=document.createElement('button');btn.id='bTlv';btn.textContent='☰ Timeline';btn.title='Alternar entre a faixa de frames e a timeline de objetos (T)';$('#bNext').after(btn);
+const bObj=document.createElement('button');bObj.textContent='Separar em objetos';bObj.title='Transforma tudo que está desenhado neste frame em objetos (um por traço/forma conectada)';
+const lbTh=document.createElement('label');lbTh.className='tlvOnly';lbTh.innerHTML='<input id="tlvTh" type="checkbox" checked> Miniaturas';
+const bCp=document.createElement('button');bCp.className='tlvOnly';bCp.textContent='Copiar objeto';bCp.disabled=true;
+const bPs=document.createElement('button');bPs.className='tlvOnly';bPs.textContent='Colar objeto';bPs.disabled=true;
+const bDo=document.createElement('button');bDo.className='tlvOnly';bDo.textContent='Excluir objeto';bDo.disabled=true;bDo.title='Exclui o objeto selecionado na timeline neste frame (Delete)';
+btn.after(bObj,lbTh,bCp,bPs,bDo);
 const box=document.createElement('div');box.id='tlv';
-box.innerHTML='<div id="tlvIn" style="--cw:40px"><div id="tlvH" class="tlr"><div class="tll"><b>Frames</b><input id="tlvZ" type="range" min="16" max="90" value="40" title="Zoom da timeline" aria-label="Zoom da timeline"></div><div class="tlt" id="tlvRu"></div></div><div id="tlvVid"></div><div id="tlvBase"></div><div id="tlvObj"></div><div id="tlvPh"></div></div>';
+box.innerHTML='<div id="tlvIn" style="--cw:40px"><div id="tlvH" class="tlr"><div class="tll"><b>Frames</b><input id="tlvZ" type="range" min="16" max="90" value="40" title="Zoom da timeline" aria-label="Zoom da timeline"></div><div class="tlt" id="tlvRu"></div></div><div id="tlvVid"></div><div id="tlvObj"></div><div id="tlvPh"></div></div>';
 $('#frames').after(box);
-const ru=$('#tlvRu'),tmp=mk(160,90);
+const ru=$('#tlvRu');
 const dims=()=>{const cw=Math.max(10,CW-2);return{cw,ch:showTh?Math.max(6,Math.round(cw*H/W)):12}};
-function clickFrame(i,e){const o=$('#frames').children[i];if(o&&o.onclick)o.onclick(e);else go(i)}
+const fidx=c=>frames.indexOf(c.fr);
 
-/* ---------- extensão do desenho pelos frames ---------- */
-const span=c=>{const o=frames.indexOf(c.fr);return o<0?null:{s:Math.max(0,o-c.b),e:Math.min(frames.length-1,o+c.a)}};
-const hasExt=()=>tracks.some(t=>!t.off&&t.clips.some(c=>c.a||c.b));
-function drawExt(x,i){for(const t of tracks){if(t.off)continue;for(const c of t.clips){if(!c.a&&!c.b)continue;const o=frames.indexOf(c.fr);if(o<0||i===o||i<o-c.b||i>o+c.a)continue;
-x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}}}
+/* ---------- objetos desenhados em cada frame ---------- */
+const hasExt=()=>tracks.length>0;
+function drawExt(x,i){const f=frames[i];if(!f)return;for(const t of tracks)for(const c of t.clips)if(c.fr===f){x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}}
 function extThumb(i){const cell=$('#frames').children[i];if(!cell)return;const t=cell.querySelector('canvas'),x=t.getContext('2d'),k=t.width/W;x.save();x.scale(k,k);drawExt(x,i);x.restore()}
-function refreshSpan(s){if(!s)return;for(let i=s.s;i<=s.e;i++)thumb(i)}
+const refreshAll=()=>frames.forEach((_,i)=>thumb(i));
+/* toda alteração de objetos passa por aqui: entra no Ctrl+Z/Ctrl+Y */
+function act(fn){snap();const s={b:cloneT()};sts.set(G,s);fn();s.a=cloneT();refreshAll();render();tlvObj();markClips()}
+function hitA(c,lx,ly,R){const x0=Math.max(0,Math.floor(lx-R)),y0=Math.max(0,Math.floor(ly-R)),x1=Math.min(c.width,Math.ceil(lx+R)),y1=Math.min(c.height,Math.ceil(ly+R));if(x1<=x0||y1<=y0)return false;const d=c.getContext('2d').getImageData(x0,y0,x1-x0,y1-y0).data;for(let i=3;i<d.length;i+=4)if(d[i]>0)return true;return false}
+function newTrack(name,c){cnt++;const t={name:name||'Objeto '+cnt,hue:(cnt*47+200)%360,clips:[c]};tracks.push(t);return t}
 
-/* ---------- desenho base: estender/encurtar o desenho de um frame (grava nos frames de verdade) ---------- */
-const holdOf=fr=>holds.find(Q=>Q.list.includes(fr));
-const copyC=c=>{const k=mk(c.width,c.height);k.getContext('2d').drawImage(c,0,0);return k};
-const isEmpty=c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<d.length;i+=4)if(d[i])return false;return true};
-const rng=Q=>{const ix=Q.list.map(f=>frames.indexOf(f)).filter(i=>i>=0);return ix.length?{s:Math.min(...ix),e:Math.max(...ix)}:null};
-function pruneHolds(){for(let k=holds.length-1;k>=0;k--){const Q=holds[k];Q.list=Q.list.filter(f=>frames.includes(f));for(const f of [...Q.saved.keys()])if(!frames.includes(f))Q.saved.delete(f);if(!Q.list.length)holds.splice(k,1)}}
-/* frames que saem do intervalo voltam ao que eram antes; frames que entram recebem o desenho */
-function setRange(Q,s,z){const sub=frames.slice(s,z+1),want=new Set(sub),had=new Set(Q.list),ch=[];
-for(const f of Q.list)if(!want.has(f)){const x=f.c.getContext('2d');x.clearRect(0,0,W,H);const sv=Q.saved.get(f);if(sv)x.drawImage(sv,0,0);Q.saved.delete(f);ch.push(f)}
-for(const f of sub)if(!had.has(f)){Q.saved.set(f,f===Q.origin||isEmpty(f.c)?null:copyC(f.c));f.c.getContext('2d').drawImage(Q.src,0,0);ch.push(f)}
-Q.list=sub;ch.forEach(f=>{const i=frames.indexOf(f);if(i>=0)thumb(i)})}
-function placeHold(Q){const L=$('#tlvBase .hl');if(!L)return;const r=rng(Q);let b=bars.get(Q);const triv=!r||(Q.list.length===1&&Q.list[0]===Q.origin);
-if(triv){if(b){b.remove();bars.delete(Q)}return}
-if(!b){b=document.createElement('div');b.className='hold';['l','r'].forEach(sd=>{const h=document.createElement('i');h.className='hd '+sd;h.title='Arraste para estender ou encurtar o desenho';h.onclick=e=>e.stopPropagation();h.onpointerdown=ev=>startHold(ev,h,Q.origin,sd==='r',Q);b.append(h)});L.append(b);bars.set(Q,b)}
-b.style.left=(r.s*CW+1)+'px';b.style.width=((r.e-r.s+1)*CW-2)+'px'}
-function startHold(ev,h,fr,right,Q0){ev.stopPropagation();ev.preventDefault();if(playing)stop();h.setPointerCapture(ev.pointerId);
-let Q=Q0||holdOf(fr);const pc=h.parentNode;pc.classList.add('dr');
-if(!Q){Q={origin:fr,src:copyC(fr.c),list:[fr],saved:new Map([[fr,null]])};holds.push(Q)}
-else if(Q.list.includes(Q.origin))Q.src=copyC(Q.origin.c);
-const r0=rng(Q),x0=ev.clientX;
-const mv=e=>{const dx=Math.round((e.clientX-x0)/CW);let s=r0.s,z=r0.e;if(right)z=Math.max(s,Math.min(frames.length-1,r0.e+dx));else s=Math.min(z,Math.max(0,r0.s+dx));setRange(Q,s,z);placeHold(Q);render()};
-const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);pc.classList.remove('dr');
-if(Q.list.length===1&&Q.list[0]===Q.origin){const k=holds.indexOf(Q);if(k>=0)holds.splice(k,1)}placeHold(Q);render()};
-h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)}
-
-/* ---------- régua: clique/arraste para navegar ---------- */
+/* ---------- régua ---------- */
 const scrub=e=>{if(!frames.length)return;const r=ru.getBoundingClientRect();if(playing)stop();go(Math.floor((e.clientX-r.left)/CW))};
-ru.addEventListener('pointerdown',e=>{ru.setPointerCapture(e.pointerId);scrub(e)});
-ru.addEventListener('pointermove',e=>{if(e.buttons&1)scrub(e)});
+ru.addEventListener('pointerdown',e=>{const i=Math.floor((e.clientX-ru.getBoundingClientRect().left)/CW);if((e.ctrlKey||e.metaKey)&&i>=0&&i<frames.length){sel.has(i)?sel.delete(i):sel.add(i);mark();return}ru.setPointerCapture(e.pointerId);scrub(e)});
+ru.addEventListener('pointermove',e=>{if(e.buttons&1&&!e.ctrlKey&&!e.metaKey)scrub(e)});
 $('#tlvZ').oninput=e=>{CW=+e.target.value;if(on)tlvBuild()};
 
-/* ---------- desenho das linhas ---------- */
-function tlvThumb(i){if(!showTh)return;const row=$('#tlvBase .tcs'),d=row&&row.children[i];if(!d||!frames[i])return;
-const c=d.firstChild,x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
-tmp.width=160;tmp.height=Math.max(1,Math.round(160*H/W));const t=tmp.getContext('2d');t.imageSmoothingQuality='high';t.drawImage(frames[i].c,0,0,tmp.width,tmp.height);if(hasExt()){const k=tmp.width/W;t.save();t.scale(k,k);drawExt(t,i);t.restore()}
-x.imageSmoothingQuality='high';x.drawImage(tmp,0,0,c.width,c.height)}
-function tlvBuild(){
-const n=frames.length,{cw,ch}=dims(),w=n*CW;last=-1;selWas=true;
-$('#tlvIn').style.setProperty('--cw',CW+'px');
+/* ---------- construção ---------- */
+function tlvBuild(){const n=frames.length,w=n*CW;last=-1;$('#tlvIn').style.setProperty('--cw',CW+'px');
 const step=CW>=34?1:CW>=22?2:CW>=12?5:CW>=7?10:25;ru.style.width=w+'px';ru.textContent='';
 for(let i=0;i<n;i++){const t=document.createElement('i');if(i===0||(i+1)%step===0)t.textContent=i+1;t.title='Frame '+(i+1)+' · '+(i/fps()).toFixed(2)+' s';ru.append(t)}
 const vr=$('#tlvVid');
-if(frames.some(f=>f.bg)){vr.className='tlr';vr.innerHTML='<div class="tll"><span class="chip" style="background:var(--ac)"></span><b>Vídeo</b></div><div class="tlt" style="width:'+w+'px"><div class="bar"><span>vídeo importado · '+frames.filter(f=>f.bg).length+' frames</span></div></div>'}
-else{vr.className='';vr.textContent=''}
-const br=$('#tlvBase');br.className='tlr';br.innerHTML='<div class="tll"><span class="chip" style="background:var(--ok)"></span><b title="Passe o mouse num quadro e arraste a borda para estender ou encurtar o desenho pelos frames">Desenho base</b></div>';
-const tt=document.createElement('div');tt.className='tlt tcs'+(showTh?'':' thin');tt.style.width=w+'px';
-for(let i=0;i<n;i++){const d=document.createElement('div');d.className='tc';d.style.width=CW+'px';d.title='Frame '+(i+1);if(showTh){const c=mk(cw,ch);c.style.width=cw+'px';c.style.height=ch+'px';d.append(c)}['l','r'].forEach(sd=>{const hb=document.createElement('i');hb.className='hd '+sd+' hb';hb.title='Arraste para estender ou encurtar este desenho pelos frames';hb.onclick=ev=>ev.stopPropagation();hb.onpointerdown=ev=>startHold(ev,hb,frames[i],sd==='r',null);d.append(hb)});d.onclick=e=>clickFrame(i,e);tt.append(d)}
-br.append(tt);const hl=document.createElement('div');hl.className='hl';tt.append(hl);bars=new Map();holds.forEach(placeHold);for(let i=0;i<n;i++)tlvThumb(i);
+if(frames.some(f=>f.bg)){vr.className='tlr';vr.innerHTML='<div class="tll"><span class="chip" style="background:var(--ac)"></span><b>Vídeo</b></div><div class="tlt" style="width:'+w+'px"><div class="bar"><span>vídeo importado · '+frames.filter(f=>f.bg).length+' frames</span></div></div>'}else{vr.className='';vr.textContent=''}
 tlvObj();tlvMark()}
-function tlvObj(){
-for(let k=tracks.length-1;k>=0;k--){const t=tracks[k];if((t.off&&!redo.some(x=>x.g===t.g))||!t.clips.some(c=>frames.includes(c.fr)))tracks.splice(k,1)}
+function tlvObj(){tracks=tracks.filter(t=>t.clips.some(c=>fidx(c)>=0));
 const o=$('#tlvObj');o.textContent='';clipEls.clear();if(!on)return;
-const {cw,ch}=dims(),n=frames.length,idx=new Map(frames.map((f,i)=>[f,i])),vis=tracks.filter(t=>!t.off);
-if(!vis.length){o.innerHTML='<div class="tlr tlhint"><div class="tll"></div><div class="tlt" style="width:'+n*CW+'px"><span>Mova um desenho (Ctrl+clique nele, arraste, Enter) e ele vira uma nova linha aqui. Arraste as bordas da linha para estendê-lo por mais frames.</span></div></div>';return}
-vis.forEach(t=>{const col='hsl('+t.hue+',75%,52%)',r=document.createElement('div');r.className='tlr';r.style.height=(ch+8)+'px';
-const l=document.createElement('div');l.className='tll';l.innerHTML='<span class="chip"></span><b></b><button class="x" title="Remover a linha (o desenho no frame original continua)">×</button>';
+const{cw,ch}=dims(),n=frames.length;
+if(!tracks.length){o.innerHTML='<div class="tlr tlhint"><div class="tll"></div><div class="tlt" style="width:'+n*CW+'px"><span>Sem objetos. Ctrl+clique num desenho (ou use "Separar em objetos"): ele vira uma linha aqui. Arraste as bordas da linha para estendê-lo pelos frames.</span></div></div>';return}
+tracks.forEach(t=>{const col='hsl('+t.hue+',75%,52%)',r=document.createElement('div');r.className='tlr';r.style.height=(ch+8)+'px';
+const l=document.createElement('div');l.className='tll';l.innerHTML='<span class="chip"></span><b></b><button class="x" title="Excluir o objeto inteiro (todos os frames)">×</button>';
 l.querySelector('.chip').style.background=col;const nm=l.querySelector('b');nm.textContent=t.name;nm.title='Duplo clique para renomear';
-nm.ondblclick=()=>{const v=prompt('Nome da linha:',t.name);if(v&&v.trim()){t.name=v.trim();nm.textContent=t.name}};
-l.querySelector('.x').onclick=()=>{const rs=t.clips.map(span);tracks.splice(tracks.indexOf(t),1);rs.forEach(refreshSpan);tlvObj()};
+nm.ondblclick=()=>{const v=prompt('Nome do objeto:',t.name);if(v&&v.trim()){t.name=v.trim();nm.textContent=t.name}};
+l.querySelector('.x').onclick=()=>act(()=>{tracks.splice(tracks.indexOf(t),1);csel.clear()});
 const tt=document.createElement('div');tt.className='tlt';tt.style.width=n*CW+'px';
-t.clips.forEach(c=>{const o=idx.get(c.fr);if(o==null)return;const d=document.createElement('div');d.className='clip';
-d.style.borderColor=col;d.style.background='color-mix(in srgb,'+col+' 22%,#fff)';
-let k;if(showTh){k=mk(cw-2,ch);const x=k.getContext('2d'),s=Math.min((k.width-2)/c.w,(k.height-2)/c.h);x.fillStyle='#fff';x.fillRect(0,0,k.width,k.height);x.imageSmoothingQuality='high';x.drawImage(c.c,(k.width-c.w*s)/2,(k.height-c.h*s)/2,c.w*s,c.h*s)}
-else{k=document.createElement('div');k.style.cssText='height:100%;width:'+(CW-2)+'px;background:'+col}
-k.style.position='absolute';k.style.top='0';d.append(k);
-const hl=document.createElement('i'),hr=document.createElement('i');hl.className='hd l';hr.className='hd r';hl.style.background=hr.style.background=col;hl.title=hr.title='Arraste para estender o desenho por mais frames';d.append(hl,hr);
-const place=()=>{const a=Math.max(0,o-c.b),z=Math.min(frames.length-1,o+c.a);d.style.left=(a*CW+1)+'px';d.style.width=((z-a+1)*CW-2)+'px';d.style.height=(ch+2)+'px';k.style.left=((o-a)*CW)+'px';
-d.title=t.name+' · frame'+(z>a?'s '+(a+1)+'–'+(z+1)+' ('+(z-a+1)+')':' '+(o+1))+'\nposição '+Math.round(c.cx)+', '+Math.round(c.cy)+' · tamanho '+Math.round(c.s*100)+'% · rotação '+Math.round(c.r*180/Math.PI)+'°\nArraste as bordas para estender'};
-place();
-clipEls.set(c,d);d.classList.toggle('csel',csel.has(c));
-d.onclick=e=>{if(e.shiftKey){csel.has(c)?csel.delete(c):csel.add(c);markClips();return}
-if(!(e.ctrlKey||e.metaKey)){csel.clear();csel.add(c);markClips()}
-const r=d.getBoundingClientRect(),a=Math.max(0,o-c.b);clickFrame(a+Math.max(0,Math.floor((e.clientX-r.left)/CW)),e)};
-[hl,hr].forEach(h=>{h.onclick=e=>e.stopPropagation();
-h.onpointerdown=ev=>{ev.stopPropagation();ev.preventDefault();if(playing)stop();h.setPointerCapture(ev.pointerId);const x0=ev.clientX,a0=c.a,b0=c.b,right=h===hr,old=span(c);
-const mv=e=>{const dx=Math.round((e.clientX-x0)/CW);if(right)c.a=Math.max(0,Math.min(frames.length-1-o,a0+dx));else c.b=Math.max(0,Math.min(o,b0-dx));place();render()};
-const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);const nw=span(c);
-if(old&&nw)refreshSpan({s:Math.min(old.s,nw.s),e:Math.max(old.e,nw.e)});render()};
-h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)}});
+const its=t.clips.map(c=>({c,i:fidx(c)})).filter(q=>q.i>=0).sort((a,b)=>a.i-b.i);
+its.forEach(({c,i},k)=>{const d=document.createElement('div');d.className='clip';d.style.borderColor=col;d.style.background='color-mix(in srgb,'+col+' 22%,#fff)';
+d.style.left=(i*CW+1)+'px';d.style.width=(CW-2)+'px';d.style.height=(ch+2)+'px';
+let kk;if(showTh){kk=mk(Math.max(4,CW-4),ch);const x=kk.getContext('2d'),s=Math.min((kk.width-2)/c.w,(kk.height-2)/c.h);x.imageSmoothingQuality='high';x.drawImage(c.c,(kk.width-c.w*s)/2,(kk.height-c.h*s)/2,c.w*s,c.h*s)}else{kk=document.createElement('div');kk.style.cssText='height:100%;width:100%;background:'+col}
+kk.style.cssText+=';position:absolute;top:0;left:0';d.append(kk);
+d.title=t.name+' · frame '+(i+1)+'\nposição '+Math.round(c.cx)+', '+Math.round(c.cy)+' · tamanho '+Math.round(c.s*100)+'% · rotação '+Math.round(c.r*180/Math.PI)+'°';
+d.classList.toggle('csel',csel.has(c));clipEls.set(c,d);
+d.onclick=e=>{if(e.shiftKey)csel.has(c)?csel.delete(c):csel.add(c);else{csel.clear();csel.add(c)}markClips();if(playing)stop();go(i)};
+if(k===0){const h=document.createElement('i');h.className='hd l';h.style.background=col;h.title='Arraste para estender o objeto para trás';h.onclick=e=>e.stopPropagation();h.onpointerdown=ev=>resizeTrack(t,false,ev,h,tt);d.append(h)}
+if(k===its.length-1){const h=document.createElement('i');h.className='hd r';h.style.background=col;h.title='Arraste para estender o objeto por mais frames';h.onclick=e=>e.stopPropagation();h.onpointerdown=ev=>resizeTrack(t,true,ev,h,tt);d.append(h)}
 tt.append(d)});
-r.append(l,tt);o.append(r)})}
-function tlvMark(){
-if(!on)return;const n=frames.length,ph=$('#tlvPh');ph.style.display=n?'block':'none';ph.style.left=(LAB+cur*CW)+'px';
-const rc=ru.children;if(rc[last])rc[last].classList.remove('cur');if(rc[cur])rc[cur].classList.add('cur');
-const bc=$('#tlvBase .tcs');
-if(bc){if(bc.children[last])bc.children[last].classList.remove('act');if(bc.children[cur])bc.children[cur].classList.add('act');
-if(sel.size||selWas){[...bc.children].forEach((c,i)=>c.classList.toggle('sel',sel.has(i)));selWas=sel.size>0}}
-last=cur;
+r.append(l,tt);o.append(r)});tlvMark()}
+/* estender/encurtar: cria ou remove instâncias reais (uma por frame) */
+function resizeTrack(t,right,ev,h,tt){ev.stopPropagation();ev.preventDefault();if(playing)stop();h.setPointerCapture(ev.pointerId);
+const items=t.clips.map(c=>({c,i:fidx(c)})).filter(q=>q.i>=0).sort((a,b)=>a.i-b.i),F=items[0],L=items[items.length-1],x0=ev.clientX,base=t.clips.slice();
+snap();const s={b:cloneT()};sts.set(G,s);const gh=document.createElement('div');gh.className='gh';tt.append(gh);
+const mv=e=>{const dx=Math.round((e.clientX-x0)/CW);let a=F.i,z=L.i;if(right)z=Math.max(a,Math.min(frames.length-1,z+dx));else a=Math.min(z,Math.max(0,a+dx));
+const keep=base.filter(c=>{const i=fidx(c);return i>=a&&i<=z}),have=new Set(keep.map(c=>c.fr));
+for(let i=a;i<=z;i++)if(!have.has(frames[i]))keep.push({...(i<F.i?F.c:L.c),fr:frames[i]});
+t.clips=keep;gh.style.left=a*CW+'px';gh.style.width=(z-a+1)*CW+'px';refreshAll();render()};
+const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);s.a=cloneT();gh.remove();tlvObj()};
+h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up)}
+function tlvMark(){if(!on)return;const n=frames.length,ph=$('#tlvPh');ph.style.display=n?'block':'none';ph.style.left=(LAB+cur*CW)+'px';
+const rc=ru.children;if(rc[last])rc[last].classList.remove('cur');if(rc[cur])rc[cur].classList.add('cur');[...rc].forEach((c,i)=>c.classList.toggle('sel',sel.has(i)));last=cur;
 const s=box;if(cur*CW<s.scrollLeft)s.scrollLeft=Math.max(0,cur*CW-8);else if(LAB+(cur+1)*CW>s.scrollLeft+s.clientWidth)s.scrollLeft=LAB+(cur+1)*CW-s.clientWidth+8}
 function toggle(v){on=v===undefined?!on:v;document.body.classList.toggle('tlv-on',on);btn.classList.toggle('on',on);if(on)tlvBuild()}
 btn.onclick=()=>toggle();
 addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();toggle()}});
-
-/* ---------- copiar e colar objetos da timeline ---------- */
-function markClips(){clipEls.forEach((d,c)=>d.classList.toggle('csel',csel.has(c)));bCp.disabled=!csel.size;bPs.disabled=!cclip.length}
-function copyClips(){const L=[];for(const t of tracks){if(t.off)continue;for(const c of t.clips){if(!csel.has(c))continue;const o=frames.indexOf(c.fr);if(o<0)continue;L.push({o,name:t.name.replace(/ \(cópia\)$/,''),c:c.c,w:c.w,h:c.h,cx:c.cx,cy:c.cy,s:c.s,r:c.r,a:c.a||0,b:c.b||0})}}
-if(!L.length){toast('Clique num objeto da timeline antes de copiar (Shift+clique para vários).',3000);return}
-L.sort((p,q)=>p.o-q.o);cclip=L;markClips();toast(L.length+(L.length>1?' objetos copiados':' objeto copiado')+'. Escolha um frame e use Colar objeto (Ctrl+V).',3500)}
-function pasteClips(at){if(!cclip.length||!frames.length)return;commitFloat();
-const base=cclip[0].o,g=++G,seen=new Set(),made=[];let out=0;
-cclip.forEach(k=>{const idx=at+(k.o-base);if(idx<0||idx>=frames.length){out++;return}
-const f=frames[idx],x=f.c.getContext('2d');
-if(!seen.has(f)){seen.add(f);undo.push({i:idx,g,d:x.getImageData(0,0,W,H)})}
-x.save();x.translate(k.cx,k.cy);x.rotate(k.r);x.scale(k.s,k.s);x.drawImage(k.c,-k.w/2,-k.h/2);x.restore();
-cnt++;made.push({name:k.name+' (cópia)',hue:(cnt*47+200)%360,g,off:false,clips:[{fr:f,c:k.c,w:k.w,h:k.h,cx:k.cx,cy:k.cy,s:k.s,r:k.r,a:k.a,b:k.b}]})});
-if(!made.length){toast('Nenhum objeto coube a partir do frame '+(at+1)+' (o projeto termina antes).',3500);return}
-redo.length=0;while(undo.length>80&&undo[0].g!==g)undo.shift();
-made.forEach(t=>tracks.push(t));csel.clear();made.forEach(t=>csel.add(t.clips[0]));
-seen.forEach(f=>thumb(frames.indexOf(f)));made.forEach(t=>refreshSpan(span(t.clips[0])));
-if(on)tlvObj();markClips();render();
-toast(made.length+(made.length>1?' objetos colados':' objeto colado')+' a partir do frame '+(at+1)+(out?' ('+out+' ficou fora do fim do projeto)':'')+'.',3500)}
-bCp.onclick=copyClips;bPs.onclick=()=>pasteClips(cur);
-addEventListener('keydown',e=>{if(!on||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const k=e.key.toLowerCase(),cm=(e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey;
-if(cm&&k==='c'&&csel.size){e.preventDefault();copyClips()}
-else if(cm&&k==='v'&&cclip.length){e.preventDefault();pasteClips(cur)}
-else if(k==='escape'&&csel.size){csel.clear();markClips()}});
 $('#tlvTh').onchange=e=>{showTh=e.target.checked;const z=$('#tlvZ');z.min=showTh?16:4;if(showTh&&CW<16)CW=16;z.value=CW;if(on)tlvBuild()};
 
-/* ---------- ganchos: acompanham o que o editor já faz, sem alterar o comportamento ---------- */
-const _build=build,_mark=mark,_thumb=thumb,_reset=resetProject,_lift=lift,_commit=commitFloat,_swap=swap;
-build=function(){busy=true;try{_build.apply(this,arguments)}finally{busy=false}pruneHolds();if(on)tlvBuild();if(hasExt())frames.forEach((_,i)=>extThumb(i))};
+/* ---------- selecionar, excluir, copiar e colar objetos ---------- */
+function markClips(){clipEls.forEach((d,c)=>d.classList.toggle('csel',csel.has(c)));bCp.disabled=!csel.size;bDo.disabled=!csel.size;bPs.disabled=!cclip.length}
+function delSel(){if(!csel.size)return;act(()=>{tracks.forEach(t=>t.clips=t.clips.filter(c=>!csel.has(c)));tracks=tracks.filter(t=>t.clips.length);csel.clear()})}
+bDo.onclick=delSel;
+function copyClips(){const L=[];for(const t of tracks)for(const c of t.clips){if(!csel.has(c)||fidx(c)<0)continue;L.push({o:fidx(c),name:t.name.replace(/ \(cópia\)$/,''),c:c.c,w:c.w,h:c.h,cx:c.cx,cy:c.cy,s:c.s,r:c.r})}
+if(!L.length){toast('Clique num objeto da timeline antes de copiar (Shift+clique para vários).',3000);return}
+L.sort((p,q)=>p.o-q.o);cclip=L;markClips();toast(L.length+(L.length>1?' objetos copiados':' objeto copiado')+'. Escolha um frame e use Colar objeto (Ctrl+V).',3500)}
+function pasteClips(){if(!cclip.length||!frames.length)return;commitFloat();const at=cur,base=cclip[0].o,tg=k=>frames[at+(k.o-base)];
+if(cclip.length===1){const k=cclip[0];snap();sts.set(G,{b:cloneT()});fl={i:cur,c:k.c,w:k.w,h:k.h,cx:k.cx,cy:k.cy,s:k.s,r:k.r,o:{cx:k.cx,cy:k.cy,s:1,r:0},force:true,g:G,tr:null,nm:k.name+' (cópia)'};fd=null;csel.clear();markClips();render();toast('Objeto colado no frame '+(at+1)+'. Arraste para posicionar · Enter confirma · Esc cancela',6000);return}
+if(!cclip.some(tg)){toast('Nenhum objeto coube a partir do frame '+(at+1)+'.',3500);return}
+let off=0;const clash=o=>cclip.some(k=>{const f=tg(k);return f&&tracks.some(t=>t.clips.some(c=>c.fr===f&&c.c===k.c&&Math.hypot(c.cx-(k.cx+o),c.cy-(k.cy+o))<2))});while(clash(off)&&off<300)off+=30;
+act(()=>{csel.clear();cclip.forEach(k=>{const f=tg(k);if(f)newTrack(k.name+' (cópia)',{fr:f,c:k.c,w:k.w,h:k.h,cx:k.cx+off,cy:k.cy+off,s:k.s,r:k.r})})});toast('Objetos colados a partir do frame '+(at+1)+(off?' (deslocados)':'')+'.',3500)}
+bCp.onclick=copyClips;bPs.onclick=()=>pasteClips();
+/* Delete/Esc/Ctrl+C/Ctrl+V (captura: roda antes dos atalhos antigos, que excluíam o frame) */
+addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const k=e.key.toLowerCase(),cm=(e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey;
+if(k==='delete'||k==='backspace'){if(fl){e.preventDefault();e.stopImmediatePropagation();const s=sts.get(fl.g);fl=null;fd=null;if(s)s.a=cloneT();refreshAll();render();tlvObj();return}
+if(csel.size){e.preventDefault();e.stopImmediatePropagation();delSel();return}}
+if(!on)return;
+if(cm&&k==='c'&&csel.size){e.preventDefault();copyClips()}else if(cm&&k==='v'&&cclip.length){e.preventDefault();e.stopImmediatePropagation();pasteClips()}else if(k==='escape'&&csel.size&&!fl){csel.clear();markClips()}},true);
+
+/* ---------- separar o desenho do frame em objetos ---------- */
+function objectify(){const f=frames[cur];if(!f)return;commitFloat();const x=f.c.getContext('2d'),img=x.getImageData(0,0,W,H),d=img.data,seen=new Uint8Array(W*H),made=[];
+for(let q=0;q<W*H;q++){if(seen[q]||!d[q*4+3])continue;const list=[q],st=[q];seen[q]=1;let x0=W,y0=H,x1=0,y1=0;
+while(st.length){const i=st.pop(),X=i%W,Y=(i/W)|0;if(X<x0)x0=X;if(X>x1)x1=X;if(Y<y0)y0=Y;if(Y>y1)y1=Y;
+for(let dy=-2;dy<=2;dy++){const Y2=Y+dy;if(Y2<0||Y2>=H)continue;for(let dx=-2;dx<=2;dx++){const X2=X+dx;if(X2<0||X2>=W)continue;const j=Y2*W+X2;if(!seen[j]&&d[j*4+3]>0){seen[j]=1;list.push(j);st.push(j)}}}}
+const bw=x1-x0+1,bh=y1-y0+1,oc=mk(bw,bh),oi=oc.getContext('2d').createImageData(bw,bh),od=oi.data;
+for(const i of list){const o=((((i/W)|0)-y0)*bw+(i%W-x0))*4,s=i*4;od[o]=d[s];od[o+1]=d[s+1];od[o+2]=d[s+2];od[o+3]=d[s+3]}
+oc.getContext('2d').putImageData(oi,0,0);made.push({c:oc,w:bw,h:bh,cx:x0+bw/2,cy:y0+bh/2})}
+if(!made.length){toast('Não há desenho solto neste frame. Tudo já é objeto.',3000);return}
+act(()=>{x.clearRect(0,0,W,H);made.forEach(m=>newTrack('Desenho '+(cnt+1),{fr:f,c:m.c,w:m.w,h:m.h,cx:m.cx,cy:m.cy,s:1,r:0}))});
+toast(made.length+(made.length>1?' objetos criados':' objeto criado')+' neste frame. Abra a timeline (T) para estendê-los.',4000)}
+bObj.onclick=objectify;
+
+/* ---------- ganchos no editor ---------- */
+const _build=build,_mark=mark,_thumb=thumb,_reset=resetProject,_lift=lift,_swap=swap,_cancel=cancelFl,_bucket=bucket,_add=addFrame,_cpv=copyPrev;
+build=function(){busy=true;try{_build.apply(this,arguments)}finally{busy=false}if(on)tlvBuild();if(hasExt())frames.forEach((_,i)=>extThumb(i))};
 mark=function(){_mark.apply(this,arguments);if(on&&!busy)tlvMark()};
-thumb=function(i){_thumb.apply(this,arguments);if(!busy&&hasExt())extThumb(i);if(on&&!busy)tlvThumb(i);};
+thumb=function(i){_thumb.apply(this,arguments);if(!busy&&hasExt())extThumb(i)};
 const _compose=compose;compose=function(x,i,o){_compose.apply(this,arguments);drawExt(x,i)};
-resetProject=function(){tracks.length=0;cnt=0;holds.length=0;bars=new Map();return _reset.apply(this,arguments)};
-/* ao levantar um desenho (Ctrl+clique) guardamos a posição original */
-lift=function(p,copy){const before=fl;_lift.apply(this,arguments);if(fl&&fl!==before){fl.o={cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r};fl.g=G}};
-/* ao confirmar, se o desenho mudou de posição/tamanho/rotação → vira uma linha nova */
-commitFloat=function(){const f=fl;let t=null;
-if(f&&f.o&&(Math.hypot(f.cx-f.o.cx,f.cy-f.o.cy)>.5||Math.abs(f.s-1)>.001||Math.abs(f.r)>.001)&&frames[f.i]){cnt++;
-t={name:'Objeto '+cnt,hue:(cnt*47+200)%360,g:f.g,off:false,clips:[{fr:frames[f.i],c:f.c,w:f.w,h:f.h,cx:f.cx,cy:f.cy,s:f.s,r:f.r,a:0,b:0}]}}
-_commit.apply(this,arguments);
-if(t){tracks.push(t);if(on)tlvObj();else toast('Nova linha na timeline: '+t.name+' (tecla T abre a timeline)',3500)}};
-/* desfazer/refazer escondem/mostram a linha correspondente */
-swap=function(from,to){commitFloat();const e=from[from.length-1],ts=e?tracks.filter(t=>t.g===e.g):[];_swap.apply(this,arguments);
-if(e&&ts.length){const n=to[to.length-1];ts.forEach(t=>{t.off=from===undo;t.g=n?n.g:null});ts.forEach(t=>t.clips.forEach(c=>refreshSpan(span(c))));tlvObj()}};
+resetProject=function(){tracks=[];cnt=0;sts.clear();csel.clear();return _reset.apply(this,arguments)};
+/* Ctrl+clique: primeiro procura um objeto deste frame (qualquer frame!); senão pega o desenho solto */
+lift=function(p,copy){const f=frames[cur];let hit=null;
+for(let ti=tracks.length-1;ti>=0&&!hit;ti--){const t=tracks[ti];for(const c of t.clips){if(c.fr!==f)continue;const dx=p.x-c.cx,dy=p.y-c.cy,co=Math.cos(c.r),si=Math.sin(c.r),lx=(dx*co+dy*si)/c.s+c.w/2,ly=(-dx*si+dy*co)/c.s+c.h/2;if(hitA(c.c,lx,ly,Math.ceil(8/c.s)))hit={t,c}}}
+if(hit){const{t,c}=hit;snap();sts.set(G,{b:cloneT()});
+fl={i:cur,c:c.c,w:c.w,h:c.h,cx:c.cx,cy:c.cy,s:c.s,r:c.r,o:{cx:c.cx,cy:c.cy,s:c.s,r:c.r},g:G,force:true,tr:copy?null:t,nm:t.name+(copy?' (cópia)':'')};
+if(!copy)t.clips.splice(t.clips.indexOf(c),1);fd={m:'move',sx:p.x,sy:p.y,cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r,d0:1};csel.clear();thumb(cur);render();
+toast('Arraste para mover · círculos mudam tamanho/giro · Enter confirma · Esc cancela · Delete exclui',4500);return}
+const before=fl,b0=cloneT();_lift.apply(this,arguments);if(fl&&fl!==before){fl.o={cx:fl.cx,cy:fl.cy,s:1,r:0};fl.g=G;fl.force=true;fl.tr=null;sts.set(G,{b:b0})}};
+/* confirmar: o objeto volta para a própria linha (só muda neste frame) ou vira uma linha nova */
+commitFloat=function(){const f=fl;if(!f)return;const fr=frames[f.i];
+if(fr){const c={fr,c:f.c,w:f.w,h:f.h,cx:f.cx,cy:f.cy,s:f.s,r:f.r};let t=f.tr&&tracks.includes(f.tr)?f.tr:null;
+if(t){t.clips=t.clips.filter(k=>k.fr!==fr);t.clips.push(c)}else t=newTrack(f.nm,c);const s=sts.get(f.g);if(s)s.a=cloneT()}
+fl=null;fd=null;thumb(f.i);render();if(on)tlvObj();else toast('Objeto na timeline (tecla T abre).',2500)};
+cancelFl=function(){const s=fl&&sts.get(fl.g);_cancel.apply(this,arguments);if(s&&s.b){setT(s.b);refreshAll();render();tlvObj()}};
+/* desfazer/refazer também restauram os objetos */
+swap=function(from,to){commitFloat();const e=from[from.length-1],g0=e&&e.g;_swap.apply(this,arguments);const s=g0&&sts.get(g0);
+if(s){const st=from===undo?s.b:s.a;if(st)setT(st);sts.set(G,s);refreshAll();render();tlvObj();markClips()}};
+$('#bUndo').onclick=()=>swap(undo,redo);$('#bRedo').onclick=()=>swap(redo,undo);
+/* balde: enxerga os objetos e o preenchimento vira um objeto novo */
+bucket=function(p){const f=frames[cur],real=f.c,t=mk(W,H),tc=t.getContext('2d');tc.drawImage(real,0,0);drawExt(tc,cur);
+const bef=tc.getImageData(0,0,W,H).data.slice(),n=undo.length,b0=cloneT();f.c=t;try{_bucket(p)}finally{f.c=real}
+if(undo.length===n)return;undo[undo.length-1].d=real.getContext('2d').getImageData(0,0,W,H);
+const af=tc.getImageData(0,0,W,H),d=af.data;let x0=W,y0=H,x1=-1,y1=-1;
+for(let i=0;i<W*H;i++){const j=i*4;if(d[j]!==bef[j]||d[j+1]!==bef[j+1]||d[j+2]!==bef[j+2]||d[j+3]!==bef[j+3]){const X=i%W,Y=(i/W)|0;if(X<x0)x0=X;if(X>x1)x1=X;if(Y<y0)y0=Y;if(Y>y1)y1=Y}else d[j+3]=0}
+if(x1<0){thumb(cur);render();return}
+tc.putImageData(af,0,0);const bw=x1-x0+1,bh=y1-y0+1,oc=mk(bw,bh);oc.getContext('2d').drawImage(t,x0,y0,bw,bh,0,0,bw,bh);
+const s={b:b0};sts.set(G,s);newTrack('Preenchimento '+(cnt+1),{fr:f,c:oc,w:bw,h:bh,cx:x0+bw/2,cy:y0+bh/2,s:1,r:0});s.a=cloneT();thumb(cur);render();if(on)tlvObj()};
+/* novo frame copiado / copiar do anterior levam os objetos junto */
+const dup=(a,b)=>{tracks.forEach(t=>{const c=t.clips.find(k=>k.fr===a);if(c)t.clips.push({...c,fr:b})});refreshAll();render();if(on)tlvObj()};
+addFrame=function(c){const prev=frames[cur];_add.apply(this,arguments);if(c&&prev)dup(prev,frames[cur])};
+copyPrev=function(){if(cur<1)return;const a=frames[cur-1],b=frames[cur],b0=cloneT();_cpv.apply(this,arguments);tracks.forEach(t=>t.clips=t.clips.filter(c=>c.fr!==b));dup(a,b);sts.set(G,{b:b0,a:cloneT()})};
+$('#bCp').onclick=()=>copyPrev();
 })();
 </script>
 <script>
