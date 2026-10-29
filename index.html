@@ -570,7 +570,11 @@ const _build=build,_mark=mark,_thumb=thumb,_reset=resetProject,_lift=lift,_swap=
 build=function(){busy=true;try{_build.apply(this,arguments)}finally{busy=false}if(on)tlvBuild();if(hasExt())frames.forEach((_,i)=>extThumb(i))};
 mark=function(){_mark.apply(this,arguments);if(on&&!busy)tlvMark()};
 thumb=function(i){_thumb.apply(this,arguments);if(!busy&&hasExt())extThumb(i)};
-const _compose=compose;compose=function(x,i,o){_compose.apply(this,arguments);drawExt(x,i)};
+const ot=mk(2,2);
+function onionObj(x,i,col,a){const f=frames[i];if(!f||!tracks.some(t=>t.clips.some(c=>c.fr===f)))return;ot.width=W;ot.height=H;const c=ot.getContext('2d');drawExt(c,i);c.globalCompositeOperation='source-in';c.fillStyle=col;c.fillRect(0,0,W,H);x.globalAlpha=a;x.drawImage(ot,0,0);x.globalAlpha=1}
+const _compose=compose;compose=function(x,i,o){_compose.apply(this,arguments);
+if(o&&o.onion){const a=$('#onOp').value/100;for(let k=+$('#nPrev').value;k>=1;k--)onionObj(x,i-k,'#e11d48',a*(1-(k-1)*.2));for(let k=+$('#nNext').value;k>=1;k--)onionObj(x,i+k,'#16a34a',a*(1-(k-1)*.2))}
+drawExt(x,i)};
 resetProject=function(){tracks=[];cnt=0;sts.clear();csel.clear();return _reset.apply(this,arguments)};
 /* Ctrl+clique: primeiro procura um objeto deste frame (qualquer frame!); senão pega o desenho solto */
 lift=function(p,copy){const f=frames[cur];let hit=null;
@@ -604,6 +608,57 @@ const dup=(a,b)=>{tracks.forEach(t=>{const c=t.clips.find(k=>k.fr===a);if(c)t.cl
 addFrame=function(c){const prev=frames[cur];_add.apply(this,arguments);if(c&&prev)dup(prev,frames[cur])};
 copyPrev=function(){if(cur<1)return;const a=frames[cur-1],b=frames[cur],b0=cloneT();_cpv.apply(this,arguments);tracks.forEach(t=>t.clips=t.clips.filter(c=>c.fr!==b));dup(a,b);sts.set(G,{b:b0,a:cloneT()})};
 $('#bCp').onclick=()=>copyPrev();
+
+/* ================= BLOCOS DE ANIMAÇÃO =================
+   Novo bloco → anima x frames → Concluir → arraste o cartão para a timeline/faixa de frames.
+   Soltar insere uma cópia dos frames (e dos objetos) no projeto; Shift ao soltar = por cima dos frames existentes. */
+const blocks=[];let bm=null,bn=0;
+document.head.append(Object.assign(document.createElement('style'),{textContent:'#bkList{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}.bk{border:1px solid var(--ln);border-radius:8px;background:var(--pn);padding:4px;cursor:grab;touch-action:none;user-select:none;min-width:0}.bk canvas{width:100%;display:block;border-radius:4px;background:#fff;pointer-events:none}.bk b{font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.bk .bb{display:flex;gap:2px;align-items:center}.bk small{color:var(--mu);font-size:10px}.bk button{padding:0 5px;font-size:12px;border-radius:5px}.bkGhost{position:fixed;z-index:30;pointer-events:none;background:linear-gradient(135deg,var(--ac),var(--ac3));color:#fff;padding:4px 9px;border-radius:8px;font-size:12px;box-shadow:0 4px 14px #0006;white-space:nowrap}#bmInfo{display:none;align-items:center;gap:6px;padding:3px 8px;border-radius:9px;background:color-mix(in srgb,var(--ac) 16%,var(--pn));border:1px solid var(--ac)}body.bm-on #bmInfo{display:flex}body.bm-on #stage{box-shadow:inset 0 0 0 3px var(--ac)}'}));
+const panel=document.createElement('div');panel.className='g';
+panel.innerHTML='<h2>Blocos de animação</h2><button id="bkNew" class="pri" style="width:100%">+ Novo bloco</button><div id="bkList"></div><div style="color:var(--mu);font-size:11px;margin-top:6px">Arraste um bloco para a timeline ou para a faixa de frames. Shift ao soltar = por cima dos frames existentes.</div>';
+$('#hint').before(panel);
+const info=document.createElement('span');info.id='bmInfo';info.innerHTML='<b id="bmT"></b><button id="bmOk" class="pri">✔ Concluir bloco</button><button id="bmNo">Descartar</button>';$('header h1').after(info);
+function ui(){document.body.classList.toggle('bm-on',!!bm);$('#bVid').disabled=$('#bNew').disabled=!!bm;if(bm){$('#bmT').textContent='Editando '+(bm.blk?bm.blk.name:'novo bloco');$('#bmNo').style.display=bm.blk?'none':''}}
+const blank=c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<d.length;i+=4)if(d[i])return false;return true};
+/* dentro de um bloco a sombra do frame anterior fica sempre ligada e travada */
+function lock(v){const ids=['onion','nPrev','onOp'];if(v){bm.ui=ids.map(id=>$('#'+id).value);bm.ck=$('#onion').checked;$('#onion').checked=true;if(+$('#nPrev').value<1)$('#nPrev').value=1;if(+$('#onOp').value<35)$('#onOp').value=35}
+else if(bm&&bm.ui){ids.forEach((id,k)=>{if(id!=='onion')$('#'+id).value=bm.ui[k]});$('#onion').checked=bm.ck}
+$('#onion').disabled=$('#nPrev').disabled=!!v}
+function enter(blk){if(bm){toast('Conclua o bloco atual primeiro.',3000);return}need();commitFloat();if(playing)stop();
+bm={blk,st:{fr:frames,cur,tr:tracks,u:undo.splice(0),r:redo.splice(0)}};lock(true);
+frames=blk?blk.frames:[newFrame()];cur=0;tracks=blk?blk.tracks:[];csel.clear();ui();build();render();
+toast(blk?'Editando o bloco. Clique em Concluir bloco (topo) quando terminar.':'Anime os frames do bloco e clique em Concluir bloco (topo). Seu projeto fica guardado.',5000)}
+function leave(save){if(!bm)return;commitFloat();if(playing)stop();const{blk,st}=bm;let msg='';
+if(save){if(!blk&&frames.every(f=>blank(f.c))&&!tracks.length)msg='Bloco vazio descartado.';
+else{const b=blk||{id:++bn,name:'Bloco '+bn};b.frames=frames.slice();b.tracks=tracks;b.W=W;b.H=H;if(!blk)blocks.push(b);msg='Bloco "'+b.name+'" salvo ('+b.frames.length+' frames). Arraste-o para o projeto.'}}
+frames=st.fr;cur=st.cur;tracks=st.tr;undo.length=0;undo.push(...st.u);redo.length=0;redo.push(...st.r);csel.clear();lock(false);bm=null;ui();build();render();renderBlocks();if(msg)toast(msg,4500)}
+$('#bkNew').onclick=()=>enter(null);$('#bmOk').onclick=()=>leave(true);$('#bmNo').onclick=()=>leave(false);
+function paint(cv,b,k){const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);const f=b.frames[k];if(!f)return;x.save();x.scale(cv.width/(b.W||W),cv.width/(b.W||W));x.drawImage(f.c,0,0);for(const t of b.tracks)for(const c of t.clips)if(c.fr===f){x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}x.restore()}
+function renderBlocks(){const L=$('#bkList');L.textContent='';if(!blocks.length){L.style.display='block';L.innerHTML='<div style="color:var(--mu);font-size:11px">Nenhum bloco ainda.</div>';return}L.style.display='';
+blocks.forEach(b=>{const d=document.createElement('div');d.className='bk';const cv=mk(160,Math.max(1,Math.round(160*(b.H||H)/(b.W||W))));d.append(cv);
+d.insertAdjacentHTML('beforeend','<b></b><div class="bb"><small></small><span style="flex:1"></span><button title="Editar bloco">✎</button><button title="Excluir bloco">×</button></div>');
+const nm=d.querySelector('b');nm.textContent=b.name;nm.title='Duplo clique para renomear';nm.ondblclick=()=>{const v=prompt('Nome do bloco:',b.name);if(v&&v.trim()){b.name=v.trim();nm.textContent=b.name}};
+d.querySelector('small').textContent=b.frames.length+' frames';
+const[be,bx]=d.querySelectorAll('button');be.onclick=()=>enter(b);bx.onclick=()=>{if(confirm('Excluir o bloco "'+b.name+'"? O que já foi copiado para o projeto continua lá.')){blocks.splice(blocks.indexOf(b),1);renderBlocks()}};
+[be,bx].forEach(x=>x.onpointerdown=e=>e.stopPropagation());
+paint(cv,b,0);let iv=null;d.onpointerenter=()=>{let k=0;clearInterval(iv);iv=setInterval(()=>{if(!d.isConnected)return clearInterval(iv);k=(k+1)%b.frames.length;paint(cv,b,k)},1000/fps())};d.onpointerleave=()=>{clearInterval(iv);paint(cv,b,0)};
+d.onpointerdown=e=>{if(e.button===0)dragBlock(e,b)};L.append(d)})}
+renderBlocks();
+function dragBlock(ev,b){if(bm){toast('Conclua o bloco antes de arrastá-lo para o projeto.',3000);return}ev.preventDefault();
+const g=document.createElement('div');g.className='bkGhost';document.body.append(g);let tgt=null,sh=false;
+const pos=e=>{sh=e.shiftKey;g.style.left=e.clientX+14+'px';g.style.top=e.clientY+14+'px';const el=document.elementFromPoint(e.clientX,e.clientY);let i=null;
+if(el&&el.closest('#tlv')&&on)i=Math.max(0,Math.min(frames.length,Math.floor((e.clientX-ru.getBoundingClientRect().left)/CW)));
+else if(el&&el.closest('#frames')){const c=el.closest('.cell');i=c?[...c.parentNode.children].indexOf(c):frames.length}
+else if(el&&el.closest('#stage'))i=frames.length?cur+1:0;
+tgt=i;g.textContent=b.name+(i==null?'  (solte na timeline)':(sh?'  → por cima, a partir do frame ':'  → inserir antes do frame ')+(i+1))};
+const up=e=>{removeEventListener('pointermove',pos);removeEventListener('pointerup',up);removeEventListener('pointercancel',cx);g.remove();if(tgt!=null)insertBlock(b,tgt,e.shiftKey)},cx=()=>{removeEventListener('pointermove',pos);removeEventListener('pointerup',up);removeEventListener('pointercancel',cx);g.remove()};
+addEventListener('pointermove',pos);addEventListener('pointerup',up);addEventListener('pointercancel',cx);pos(ev)}
+function insertBlock(b,at,over){need();commitFloat();if(playing)stop();at=Math.max(0,Math.min(frames.length,at));const k=W/(b.W||W),tf=[];
+if(over){for(let j=0;j<b.frames.length;j++){let f=frames[at+j];if(!f){f=newFrame();frames.push(f)}tf.push(f)}}else{b.frames.forEach(()=>tf.push(newFrame()));frames.splice(at,0,...tf)}
+const map=new Map();b.frames.forEach((f,j)=>{map.set(f,tf[j]);tf[j].c.getContext('2d').drawImage(f.c,0,0,W,H)});
+b.tracks.forEach(t=>{const cl=t.clips.filter(c=>map.has(c.fr)).map(c=>({...c,fr:map.get(c.fr),cx:c.cx*k,cy:c.cy*k,s:c.s*k}));if(cl.length){cnt++;tracks.push({name:t.name,hue:(cnt*47+200)%360,clips:cl})}});
+undo.length=0;redo.length=0;build();go(Math.min(at,frames.length-1));toast('Bloco "'+b.name+'" copiado: '+b.frames.length+' frames a partir do frame '+(at+1)+(over?' (por cima)':'')+'.',4000)}
+const _r2=resetProject;resetProject=function(){if(bm){lock(false);bm=null;ui()}return _r2.apply(this,arguments)};
 })();
 </script>
 <script>
