@@ -509,7 +509,7 @@ let kk;if(showTh){kk=mk(Math.max(4,CW-4),ch);const x=kk.getContext('2d'),s=Math.
 kk.style.cssText+=';position:absolute;top:0;left:0';d.append(kk);
 d.title=t.name+' · frame '+(i+1)+'\nposição '+Math.round(c.cx)+', '+Math.round(c.cy)+' · tamanho '+Math.round(c.s*100)+'% · rotação '+Math.round(c.r*180/Math.PI)+'°';
 d.classList.toggle('csel',csel.has(c));clipEls.set(c,d);
-d.onclick=e=>{if(e.shiftKey)csel.has(c)?csel.delete(c):csel.add(c);else{csel.clear();csel.add(c)}markClips();if(playing)stop();go(i)};
+d.onclick=e=>{if(dragged){dragged=false;return}if(e.shiftKey)csel.has(c)?csel.delete(c):csel.add(c);else{csel.clear();csel.add(c)}markClips();if(playing)stop();go(i)};d.onpointerdown=ev=>dragClip(ev,t,c,tt);
 if(k===0){const h=document.createElement('i');h.className='hd l';h.style.background=col;h.title='Arraste para estender o objeto para trás';h.onclick=e=>e.stopPropagation();h.onpointerdown=ev=>resizeTrack(t,false,ev,h,tt);d.append(h)}
 if(k===its.length-1){const h=document.createElement('i');h.className='hd r';h.style.background=col;h.title='Arraste para estender o objeto por mais frames';h.onclick=e=>e.stopPropagation();h.onpointerdown=ev=>resizeTrack(t,true,ev,h,tt);d.append(h)}
 tt.append(d)});
@@ -573,13 +573,13 @@ thumb=function(i){_thumb.apply(this,arguments);if(!busy&&hasExt())extThumb(i)};
 const ot=mk(2,2);
 function onionObj(x,i,col,a){const f=frames[i];if(!f||!tracks.some(t=>t.clips.some(c=>c.fr===f)))return;ot.width=W;ot.height=H;const c=ot.getContext('2d');drawExt(c,i);c.globalCompositeOperation='source-in';c.fillStyle=col;c.fillRect(0,0,W,H);x.globalAlpha=a;x.drawImage(ot,0,0);x.globalAlpha=1}
 const _compose=compose;compose=function(x,i,o){_compose.apply(this,arguments);
-if(o&&o.onion){const a=$('#onOp').value/100;for(let k=+$('#nPrev').value;k>=1;k--)onionObj(x,i-k,'#e11d48',a*(1-(k-1)*.2));for(let k=+$('#nNext').value;k>=1;k--)onionObj(x,i+k,'#16a34a',a*(1-(k-1)*.2))}
+if(o&&o.onion&&bm){const a=$('#onOp').value/100;for(let k=+$('#nPrev').value;k>=1;k--)onionObj(x,i-k,'#e11d48',a*(1-(k-1)*.2));for(let k=+$('#nNext').value;k>=1;k--)onionObj(x,i+k,'#16a34a',a*(1-(k-1)*.2))}
 drawExt(x,i)};
 resetProject=function(){tracks=[];cnt=0;sts.clear();csel.clear();return _reset.apply(this,arguments)};
 /* Ctrl+clique: primeiro procura um objeto deste frame (qualquer frame!); senão pega o desenho solto */
 lift=function(p,copy){const f=frames[cur];let hit=null;
 for(let ti=tracks.length-1;ti>=0&&!hit;ti--){const t=tracks[ti];for(const c of t.clips){if(c.fr!==f)continue;const dx=p.x-c.cx,dy=p.y-c.cy,co=Math.cos(c.r),si=Math.sin(c.r),lx=(dx*co+dy*si)/c.s+c.w/2,ly=(-dx*si+dy*co)/c.s+c.h/2;if(hitA(c.c,lx,ly,Math.ceil(8/c.s)))hit={t,c}}}
-if(hit){const{t,c}=hit;snap();sts.set(G,{b:cloneT()});
+if(hit){const{t,c}=hit;if(c.grp&&!copy){adjStart(c.grp);if(adj){ad={m:'move',p,dx:0,dy:0,k:1,d0:1};toast('Bloco inteiro (todos os frames): arraste para mover · círculos mudam tamanho/giro · Enter confirma · Esc cancela',4500)}return}snap();sts.set(G,{b:cloneT()});
 fl={i:cur,c:c.c,w:c.w,h:c.h,cx:c.cx,cy:c.cy,s:c.s,r:c.r,o:{cx:c.cx,cy:c.cy,s:c.s,r:c.r},g:G,force:true,tr:copy?null:t,nm:t.name+(copy?' (cópia)':'')};
 if(!copy)t.clips.splice(t.clips.indexOf(c),1);fd={m:'move',sx:p.x,sy:p.y,cx:fl.cx,cy:fl.cy,s:fl.s,r:fl.r,d0:1};csel.clear();thumb(cur);render();
 toast('Arraste para mover · círculos mudam tamanho/giro · Enter confirma · Esc cancela · Delete exclui',4500);return}
@@ -658,7 +658,98 @@ if(over){for(let j=0;j<b.frames.length;j++){let f=frames[at+j];if(!f){f=newFrame
 const map=new Map();b.frames.forEach((f,j)=>{map.set(f,tf[j]);tf[j].c.getContext('2d').drawImage(f.c,0,0,W,H)});
 b.tracks.forEach(t=>{const cl=t.clips.filter(c=>map.has(c.fr)).map(c=>({...c,fr:map.get(c.fr),cx:c.cx*k,cy:c.cy*k,s:c.s*k}));if(cl.length){cnt++;tracks.push({name:t.name,hue:(cnt*47+200)%360,clips:cl})}});
 undo.length=0;redo.length=0;build();go(Math.min(at,frames.length-1));toast('Bloco "'+b.name+'" copiado: '+b.frames.length+' frames a partir do frame '+(at+1)+(over?' (por cima)':'')+'.',4000)}
-const _r2=resetProject;resetProject=function(){if(bm){lock(false);bm=null;ui()}return _r2.apply(this,arguments)};
+/* ---- bloco colocado = grupo de objetos por cima do projeto (não mexe no vídeo) ---- */
+let adj=null,gn=0,ad=null;
+document.head.append(Object.assign(document.createElement('style'),{textContent:'#adjInfo{display:none;align-items:center;gap:8px;padding:3px 8px;border-radius:9px;background:color-mix(in srgb,var(--ok) 16%,var(--pn));border:1px solid var(--ok)}#adjInfo label{display:flex;gap:4px;align-items:center;color:var(--mu)}#adjInfo input[type=range]{width:90px}body.adj-on #adjInfo{display:flex}body.adj-on #stage{box-shadow:inset 0 0 0 3px var(--ok)}body.adj-on #view{cursor:move}'}));
+const aInfo=document.createElement('span');aInfo.id='adjInfo';
+aInfo.innerHTML=`<b>Ajustar bloco</b><span style="color:var(--mu)">arraste para mover · círculo do canto: tamanho · círculo de cima: giro (Shift trava ângulo) · Enter confirma · Esc cancela</span><label>Tamanho <input id="adjK" type="range" min="10" max="400" value="100"></label><label>Giro <input id="adjR" type="range" min="-180" max="180" value="0"></label><button id="adjOk" class="pri">✔ Pronto</button>`;
+$('#bmInfo').after(aInfo);
+const bAdj=document.createElement('button');bAdj.className='tlvOnly';bAdj.textContent='Ajustar bloco';bAdj.title='Mover/redimensionar/girar o bloco inteiro: selecione um objeto dele na timeline';bDo.after(bAdj);
+bAdj.onclick=()=>{const c=[...csel][0],t=c&&tracks.find(t=>t.clips.includes(c));if(!t||!t.grp){toast('Selecione, na timeline, um objeto que veio de um bloco.',3500);return}adjStart(t.grp)};
+function crop(c){const w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;let x0=w,y0=h,x1=-1,y1=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+if(x1<0)return null;const bw=x1-x0+1,bh=y1-y0+1,o=mk(bw,bh);o.getContext('2d').drawImage(c,x0,y0,bw,bh,0,0,bw,bh);return{c:o,w:bw,h:bh,cx:x0+bw/2,cy:y0+bh/2}}
+function applyG(){const g=adj;if(!g)return;const co=Math.cos(g.rot),si=Math.sin(g.rot);for(const t of tracks)if(t.grp===g.id)for(const c of t.clips){const b=c.b;if(!b)continue;const dx=b.cx-g.ax,dy=b.cy-g.ay;c.cx=g.ax+g.dx+(dx*co-dy*si)*g.k;c.cy=g.ay+g.dy+(dx*si+dy*co)*g.k;c.s=b.s*g.k;c.r=b.r+g.rot}}
+function adjStart(id){adjDone();const L=[];tracks.forEach(t=>{if(t.grp===id)t.clips.forEach(c=>L.push(c))});if(!L.length)return;commitFloat();snap();const s={b:cloneT()};sts.set(G,s);
+let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;L.forEach(c=>{const co=Math.cos(c.r),si=Math.sin(c.r);for(const[a,b]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const lx=a*c.w/2*c.s,ly=b*c.h/2*c.s,X=c.cx+lx*co-ly*si,Y=c.cy+lx*si+ly*co;x0=Math.min(x0,X);x1=Math.max(x1,X);y0=Math.min(y0,Y);y1=Math.max(y1,Y)}c.b={cx:c.cx,cy:c.cy,s:c.s,r:c.r}});const ax=(x0+x1)/2,ay=(y0+y1)/2;
+adj={id,s,ax,ay,w:Math.max(8,x1-x0),h:Math.max(8,y1-y0),dx:0,dy:0,k:1,rot:0};$('#adjK').value=100;$('#adjR').value=0;document.body.classList.add('adj-on')}
+function adjDone(){if(!adj)return;adj.s.a=cloneT();adj=null;ad=null;document.body.classList.remove('adj-on');refreshAll();render();tlvObj()}
+function adjEnd0(){adj=null;ad=null;document.body.classList.remove('adj-on')}
+$('#adjOk').onclick=adjDone;$('#adjK').oninput=e=>{if(adj){adj.k=e.target.value/100;applyG();render()}};$('#adjR').oninput=e=>{if(adj){adj.rot=e.target.value*Math.PI/180;applyG();render()}};
+/* mesmos controles do Ctrl+clique: caixa tracejada, círculo do canto (tamanho), círculo de cima (giro), arrastar = mover */
+function drawAdj(){const g=adj,u=W/view.clientWidth,k=u/g.k;vx.save();vx.translate(g.ax+g.dx,g.ay+g.dy);vx.rotate(g.rot);vx.scale(g.k,g.k);vx.lineWidth=1.5*k;vx.strokeStyle='#7c5cff';vx.setLineDash([6*k,4*k]);vx.strokeRect(-g.w/2,-g.h/2,g.w,g.h);vx.setLineDash([]);vx.beginPath();vx.moveTo(0,-g.h/2);vx.lineTo(0,-g.h/2-30*k);vx.stroke();vx.fillStyle='#fff';[[0,-g.h/2-30*k],[g.w/2,g.h/2]].forEach(([a,b])=>{vx.beginPath();vx.arc(a,b,7*k,0,6.28);vx.fill();vx.stroke()});vx.restore()}
+function hitG(p){const g=adj,u=W/view.clientWidth,c=Math.cos(g.rot),s=Math.sin(g.rot),dx=p.x-(g.ax+g.dx),dy=p.y-(g.ay+g.dy),lx=(dx*c+dy*s)/g.k,ly=(-dx*s+dy*c)/g.k,hr=12*u/g.k;
+if(Math.hypot(lx-g.w/2,ly-g.h/2)<=hr)return'scale';if(Math.hypot(lx,ly+g.h/2+30*u/g.k)<=hr)return'rot';if(Math.abs(lx)<=g.w/2+hr/2&&Math.abs(ly)<=g.h/2+hr/2)return'move';return null}
+const _rnd=render;render=function(){_rnd.apply(this,arguments);if(adj&&frames.length)drawAdj()};
+addEventListener('keydown',e=>{if(!adj||(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)&&e.target.type!=='range'))return;if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();adjDone()}else if(e.key==='Escape'){e.stopImmediatePropagation();const b=adj.s.b;adjEnd0();setT(b);refreshAll();render();tlvObj()}},true);
+view.addEventListener('pointerdown',e=>{if(!adj||e.altKey||e.button!==0)return;const p=pt(e),m=hitG(p);if(!m||e.ctrlKey||e.metaKey){adjDone();return}e.stopImmediatePropagation();view.setPointerCapture(e.pointerId);ad={m,p,dx:adj.dx,dy:adj.dy,k:adj.k,d0:Math.hypot(p.x-(adj.ax+adj.dx),p.y-(adj.ay+adj.dy))||1}},true);
+view.addEventListener('pointermove',e=>{if(!ad||!adj)return;e.stopImmediatePropagation();const q=pt(e),cx=adj.ax+adj.dx,cy=adj.ay+adj.dy;
+if(ad.m==='move'){adj.dx=ad.dx+q.x-ad.p.x;adj.dy=ad.dy+q.y-ad.p.y}else if(ad.m==='scale'){adj.k=Math.max(.05,ad.k*Math.hypot(q.x-cx,q.y-cy)/ad.d0)}else{let r=Math.atan2(q.y-cy,q.x-cx)+Math.PI/2;if(e.shiftKey)r=Math.round(r/.2618)*.2618;adj.rot=r}
+$('#adjK').value=Math.min(400,Math.max(10,Math.round(adj.k*100)));$('#adjR').value=Math.round(((adj.rot*180/Math.PI+540)%360)-180);applyG();render()},true);
+const adEnd=e=>{if(ad){ad=null;e.stopImmediatePropagation()}};view.addEventListener('pointerup',adEnd,true);view.addEventListener('pointercancel',adEnd,true);
+insertBlock=function(b,at,over){need();commitFloat();if(playing)stop();adjDone();const vid=frames.some(f=>f.bg);if(vid)over=true;at=Math.max(0,Math.min(frames.length-(vid?1:0),at));const k=W/(b.W||W),tf=[];let cut=0;
+if(over){for(let j=0;j<b.frames.length;j++){let f=frames[at+j];if(!f){if(vid){cut++;continue}f=newFrame();frames.push(f)}tf[j]=f}}else{b.frames.forEach((_,j)=>tf[j]=newFrame());frames.splice(at,0,...tf)}
+const map=new Map(),id=++gn,ras=[];
+b.frames.forEach((f,j)=>{if(!tf[j])return;map.set(f,tf[j]);const q=crop(f.c);if(q)ras.push({fr:tf[j],c:q.c,w:q.w,h:q.h,cx:q.cx*k,cy:q.cy*k,s:k,r:0})});
+if(ras.length){cnt++;tracks.push({name:b.name+' · desenho',hue:(cnt*47+200)%360,grp:id,clips:ras})}
+b.tracks.forEach(t=>{const cl=t.clips.filter(c=>map.has(c.fr)).map(c=>({...c,fr:map.get(c.fr),cx:c.cx*k,cy:c.cy*k,s:c.s*k}));if(cl.length){cnt++;tracks.push({name:t.name,hue:(cnt*47+200)%360,grp:id,clips:cl})}});
+undo.length=0;redo.length=0;build();go(at);
+toast('Bloco "'+b.name+'" adicionado por cima, a partir do frame '+(at+1)+(cut?' ('+cut+' frame(s) do bloco passaram do fim do vídeo e foram cortados)':'')+'. Ctrl+clique nele para mover, aumentar ou girar o bloco inteiro (todos os frames).',6000)};
+/* ---- mover / copiar objetos e blocos livremente pela timeline ----
+   Arrastar = move (bloco inteiro, se o objeto veio de um bloco) · Ctrl/⌘+arrastar = copia · Alt+arrastar = move só este objeto do bloco */
+var dragged=false;
+document.head.append(Object.assign(document.createElement('style'),{textContent:'#tlv .clip{cursor:grab}#tlv .clip:active{cursor:grabbing}'}));
+$('#tlvH .tll').title='Arraste um objeto/bloco para mover · Ctrl+arraste copia · Alt+arraste move só um objeto do bloco';
+function dragClip(ev,t,c,tt){if(ev.button!==0||(ev.target.classList&&ev.target.classList.contains('hd')))return;const x0=ev.clientX,d=ev.currentTarget;
+const set=(!ev.altKey&&t.grp)?tracks.filter(q=>q.grp===t.grp):[t],all=[];set.forEach(q=>q.clips.forEach(k=>{const i=fidx(k);if(i>=0)all.push({k,i})}));if(!all.length)return;
+const lo=Math.min(...all.map(a=>a.i)),hi=Math.max(...all.map(a=>a.i));let dx=0,mvd=false,gh=null;try{d.setPointerCapture(ev.pointerId)}catch(_){}
+const clean=()=>{d.removeEventListener('pointermove',mv);d.removeEventListener('pointerup',up);d.removeEventListener('pointercancel',cx);if(gh)gh.remove()};
+const mv=e=>{if(!mvd&&Math.abs(e.clientX-x0)<5)return;mvd=true;if(playing)stop();dx=Math.max(-lo,Math.min(frames.length-1-hi,Math.round((e.clientX-x0)/CW)));const cop=e.ctrlKey||e.metaKey;
+all.forEach(({k,i})=>{const el=clipEls.get(k);if(el)el.style.left=((cop?i:i+dx)*CW+1)+'px'});
+if(cop){if(!gh){gh=document.createElement('div');gh.className='gh';tt.append(gh)}gh.style.left=(lo+dx)*CW+'px';gh.style.width=(hi-lo+1)*CW+'px'}else if(gh){gh.remove();gh=null}};
+const cx=()=>{clean();if(mvd)tlvObj()};
+const up=e=>{clean();if(!mvd)return;dragged=true;setTimeout(()=>dragged=false,60);const cop=e.ctrlKey||e.metaKey;
+if(!dx){if(cop)toast('Arraste para outro frame para copiar.',2500);tlvObj();return}
+act(()=>{if(!cop){all.forEach(({k,i})=>{k.fr=frames[i+dx]})}else{const gid=set[0].grp?++gn:undefined;set.forEach(q=>{const cl=q.clips.filter(k=>fidx(k)>=0).map(k=>({...k,fr:frames[fidx(k)+dx]}));cnt++;tracks.push({...q,hue:(cnt*47+200)%360,grp:q.grp?gid:undefined,clips:cl})})}});
+toast(cop?'Cópia criada '+Math.abs(dx)+' frame(s) '+(dx>0?'à frente':'atrás')+'.':'Movido '+Math.abs(dx)+' frame(s) '+(dx>0?'à frente':'atrás')+'.',2500)};
+d.addEventListener('pointermove',mv);d.addEventListener('pointerup',up);d.addEventListener('pointercancel',cx)}
+/* a sombra vermelha é só de edição: ao reproduzir, o primeiro quadro já sai limpo */
+const _play=play;play=function(){_play.apply(this,arguments);render()};
+/* ---- o mesmo bloco colado várias vezes cai na MESMA linha; cada colagem é um grupo próprio (grp por instrução) ---- */
+const rep=document.createElement('label');rep.className='row';rep.style.margin='6px 0 0';rep.innerHTML=`<span style='width:auto'>Repetir</span><input id='bkRep' type='number' min='1' max='99' value='1' style='width:54px;background:var(--pn2);border:1px solid var(--ln);border-radius:7px;padding:3px 5px;color:var(--tx)'><span style='width:auto'>vez(es) ao soltar</span>`;$('#bkNew').after(rep);
+bAdj.onclick=()=>{const c=[...csel][0];if(!c||!c.grp){toast('Selecione, na timeline, um objeto que veio de um bloco.',3500);return}adjStart(c.grp)};
+applyG=function(){const g=adj;if(!g)return;const co=Math.cos(g.rot),si=Math.sin(g.rot);for(const t of tracks)for(const c of t.clips){if(c.grp!==g.id||!c.b)continue;const b=c.b,dx=b.cx-g.ax,dy=b.cy-g.ay;c.cx=g.ax+g.dx+(dx*co-dy*si)*g.k;c.cy=g.ay+g.dy+(dx*si+dy*co)*g.k;c.s=b.s*g.k;c.r=b.r+g.rot}};
+adjStart=function(id){adjDone();const L=[];tracks.forEach(t=>t.clips.forEach(c=>{if(c.grp===id)L.push(c)}));if(!L.length)return;commitFloat();snap();const s={b:cloneT()};sts.set(G,s);
+let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;L.forEach(c=>{const co=Math.cos(c.r),si=Math.sin(c.r);for(const[a,b]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const lx=a*c.w/2*c.s,ly=b*c.h/2*c.s,X=c.cx+lx*co-ly*si,Y=c.cy+lx*si+ly*co;x0=Math.min(x0,X);x1=Math.max(x1,X);y0=Math.min(y0,Y);y1=Math.max(y1,Y)}c.b={cx:c.cx,cy:c.cy,s:c.s,r:c.r}});
+const ax=(x0+x1)/2,ay=(y0+y1)/2;adj={id,s,ax,ay,w:Math.max(8,x1-x0),h:Math.max(8,y1-y0),dx:0,dy:0,k:1,rot:0};$('#adjK').value=100;$('#adjR').value=0;document.body.classList.add('adj-on')};
+/* mover/copiar na timeline: bloco = só as instruções daquela colagem; copia também cai na mesma linha quando há espaço */
+dragClip=function(ev,t,c,tt){if(ev.button!==0||(ev.target.classList&&ev.target.classList.contains('hd')))return;const x0=ev.clientX,d=ev.currentTarget,all=[];
+tracks.forEach(q=>q.clips.forEach(k=>{const i=fidx(k);if(i<0)return;const ins=c.grp?(ev.altKey?(q===t&&k.grp===c.grp):k.grp===c.grp):q===t;if(ins)all.push({k,i,q})}));if(!all.length)return;
+const lo=Math.min(...all.map(a=>a.i)),hi=Math.max(...all.map(a=>a.i)),Tq=[...new Set(all.map(a=>a.q))];let dx=0,mvd=false,gh=null;try{d.setPointerCapture(ev.pointerId)}catch(_){}
+const clean=()=>{d.removeEventListener('pointermove',mv);d.removeEventListener('pointerup',up);d.removeEventListener('pointercancel',cx);if(gh)gh.remove()};
+const mv=e=>{if(!mvd&&Math.abs(e.clientX-x0)<5)return;mvd=true;if(playing)stop();dx=Math.max(-lo,Math.min(frames.length-1-hi,Math.round((e.clientX-x0)/CW)));const cop=e.ctrlKey||e.metaKey;
+all.forEach(({k,i})=>{const el=clipEls.get(k);if(el)el.style.left=((cop?i:i+dx)*CW+1)+'px'});
+if(cop){if(!gh){gh=document.createElement('div');gh.className='gh';tt.append(gh)}gh.style.left=(lo+dx)*CW+'px';gh.style.width=(hi-lo+1)*CW+'px'}else if(gh){gh.remove();gh=null}};
+const cx=()=>{clean();if(mvd)tlvObj()};
+const up=e=>{clean();if(!mvd)return;dragged=true;setTimeout(()=>dragged=false,60);const cop=e.ctrlKey||e.metaKey;
+if(!dx){if(cop)toast('Arraste para outro frame para copiar.',2500);tlvObj();return}
+act(()=>{if(!cop){all.forEach(a=>{a.k.fr=frames[a.i+dx]});
+Tq.forEach(q=>{const mvs=new Set(all.filter(a=>a.q===q).map(a=>a.k)),occ=new Set(q.clips.filter(k=>!mvs.has(k)).map(k=>k.fr));if([...mvs].some(k=>occ.has(k.fr))){q.clips=q.clips.filter(k=>!mvs.has(k));cnt++;tracks.push({...q,hue:(cnt*47+200)%360,clips:[...mvs]})}})}
+else{const gm=new Map();Tq.forEach(q=>{const cl=all.filter(a=>a.q===q).map(a=>{let g=a.k.grp;if(g){if(!gm.has(g))gm.set(g,++gn);g=gm.get(g)}return{...a.k,fr:frames[a.i+dx],grp:g}});
+if(cl.every(n=>!q.clips.some(x=>x.fr===n.fr)))q.clips.push(...cl);else{cnt++;tracks.push({...q,hue:(cnt*47+200)%360,clips:cl})}})}});
+toast((cop?'Cópia criada ':'Movido ')+Math.abs(dx)+' frame(s) '+(dx>0?'à frente':'atrás')+'.',2500)};
+d.addEventListener('pointermove',mv);d.addEventListener('pointerup',up);d.addEventListener('pointercancel',cx)};
+/* colar bloco: N repetições em sequência, todas na mesma linha do bloco; sem mexer nos frames do vídeo */
+insertBlock=function(b,at,over){need();commitFloat();if(playing)stop();adjDone();const vid=frames.some(f=>f.bg);if(vid)over=true;
+const R=Math.max(1,Math.min(99,Math.round(+$('#bkRep').value)||1)),L=b.frames.length,k=W/(b.W||W);at=Math.max(0,Math.min(frames.length-(vid?1:0),at));const tf=[];let cut=0;
+for(let r=0;r<R;r++){const row=[];for(let j=0;j<L;j++){if(over){const pos=at+r*L+j;let f=frames[pos];if(!f){if(vid){cut++;row.push(null);continue}f=newFrame();frames.push(f)}row.push(f)}else row.push(null)}tf.push(row)}
+if(!over){const nf=[];for(let r=0;r<R;r++)for(let j=0;j<L;j++){const f=newFrame();tf[r][j]=f;nf.push(f)}frames.splice(at,0,...nf)}
+const put=(key,name,cl)=>{if(!cl.length)return;const q=tracks.find(t=>t.bid===b.id&&t.bk===key&&cl.every(n=>!t.clips.some(x=>x.fr===n.fr)));if(q)q.clips.push(...cl);else{cnt++;tracks.push({name,hue:(cnt*47+200)%360,bid:b.id,bk:key,clips:cl})}};
+for(let r=0;r<R;r++){const gid=++gn,ras=[];
+b.frames.forEach((f,j)=>{const nf=tf[r][j];if(!nf)return;const q=crop(f.c);if(q)ras.push({fr:nf,c:q.c,w:q.w,h:q.h,cx:q.cx*k,cy:q.cy*k,s:k,r:0,grp:gid})});put('r',b.name+' · desenho',ras);
+b.tracks.forEach((t,ti)=>{const cl=t.clips.map(c=>{const j=b.frames.indexOf(c.fr),nf=j>=0&&tf[r][j];return nf?{...c,fr:nf,cx:c.cx*k,cy:c.cy*k,s:c.s*k,grp:gid}:null}).filter(Boolean);put(ti,t.name,cl)})}
+undo.length=0;redo.length=0;build();go(at);
+toast('Bloco "'+b.name+'" colado '+R+'× a partir do frame '+(at+1)+(vid?' (por cima do vídeo)':'')+(cut?' · '+cut+' frame(s) passaram do fim e foram cortados':'')+'. Ctrl+clique em uma cópia para mover/aumentar/girar só ela.',6000)};
+const _r2=resetProject;resetProject=function(){adjEnd0();if(bm){lock(false);bm=null;ui()}return _r2.apply(this,arguments)};
 })();
 </script>
 <script>
