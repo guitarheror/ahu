@@ -471,7 +471,7 @@ const fidx=c=>frames.indexOf(c.fr);
 
 /* ---------- objetos desenhados em cada frame ---------- */
 const hasExt=()=>tracks.length>0;
-function drawExt(x,i){const f=frames[i];if(!f)return;for(const t of tracks)for(const c of t.clips)if(c.fr===f){x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}}
+function drawExt(x,i){if(noExt)return;const f=frames[i];if(!f)return;for(const t of tracks)for(const c of t.clips)if(c.fr===f){x.save();x.translate(c.cx,c.cy);x.rotate(c.r);x.scale(c.s,c.s);x.drawImage(c.c,-c.w/2,-c.h/2);x.restore()}}
 function extThumb(i){const cell=$('#frames').children[i];if(!cell)return;const t=cell.querySelector('canvas'),x=t.getContext('2d'),k=t.width/W;x.save();x.scale(k,k);drawExt(x,i);x.restore()}
 const refreshAll=()=>frames.forEach((_,i)=>thumb(i));
 /* toda alteração de objetos passa por aqui: entra no Ctrl+Z/Ctrl+Y */
@@ -749,6 +749,27 @@ b.frames.forEach((f,j)=>{const nf=tf[r][j];if(!nf)return;const q=crop(f.c);if(q)
 b.tracks.forEach((t,ti)=>{const cl=t.clips.map(c=>{const j=b.frames.indexOf(c.fr),nf=j>=0&&tf[r][j];return nf?{...c,fr:nf,cx:c.cx*k,cy:c.cy*k,s:c.s*k,grp:gid}:null}).filter(Boolean);put(ti,t.name,cl)})}
 undo.length=0;redo.length=0;build();go(at);
 toast('Bloco "'+b.name+'" colado '+R+'× a partir do frame '+(at+1)+(vid?' (por cima do vídeo)':'')+(cut?' · '+cut+' frame(s) passaram do fim e foram cortados':'')+'. Ctrl+clique em uma cópia para mover/aumentar/girar só ela.',6000)};
+/* ================= RUÍDO NA ANIMAÇÃO (estilo modificador Noise do Blender) =================
+   Não destrutivo: calculado a cada frame na reprodução e na exportação. Afeta o desenho e os objetos/blocos; o vídeo de fundo não treme. */
+const NZ={on:false,m:40,pos:8,rot:2,sc:3,warp:4,sm:1,seed:7,edit:true};var noExt=false,inR=false;
+const nzd=[['m','Quantidade de ruído',0,100,1,'%'],['pos','Tremor de posição',0,40,1,' px'],['rot','Tremor de rotação',0,15,.5,'°'],['sc','Tremor de tamanho',0,20,.5,'%'],['warp','Tremor do traço (linha viva)',0,14,.5,' px'],['sm','Suavidade (frames)',1,12,1,'']];
+const nzp=document.createElement('div');nzp.className='g';
+nzp.innerHTML=`<h2>Ruído na animação</h2><label style='display:flex;gap:6px;align-items:center;margin-bottom:4px'><input id='nzOn' type='checkbox'> Ligar ruído</label>`+nzd.map(d=>`<label style='display:block;font-size:11px;color:var(--mu);margin-top:5px'>${d[1]}: <b id='nzv_${d[0]}' style='color:var(--tx)'></b><input id='nz_${d[0]}' type='range' min='${d[2]}' max='${d[3]}' step='${d[4]}' value='${NZ[d[0]]}' style='width:100%'></label>`).join('')+`<div style='display:flex;gap:6px;align-items:center;margin-top:7px;font-size:11px;color:var(--mu)'>Semente <input id='nzSeed' type='number' min='0' max='9999' value='7' style='width:64px;background:var(--pn2);border:1px solid var(--ln);border-radius:7px;padding:3px 5px;color:var(--tx)'><button id='nzDice' title='Sortear outro ruído'>🎲</button></div><label style='display:flex;gap:6px;align-items:center;margin-top:6px;font-size:11px'><input id='nzEd' type='checkbox' checked> Ver ao editar (pausado)</label><div style='color:var(--mu);font-size:11px;margin-top:6px'>Suavidade 1 = cada frame diferente (traço fervendo); valores maiores = balanço suave. Vale na reprodução e na exportação. Desmarque “Ver ao editar” para desenhar com precisão.</div>`;
+panel.after(nzp);
+const nzSync=e=>{if(e&&e.target&&e.target.type==='range')$('#nzOn').checked=true;nzd.forEach(d=>{NZ[d[0]]=+$('#nz_'+d[0]).value;$('#nzv_'+d[0]).textContent=NZ[d[0]]+d[5]});NZ.on=$('#nzOn').checked;NZ.seed=+$('#nzSeed').value||0;NZ.edit=$('#nzEd').checked;render()};
+nzp.querySelectorAll('input').forEach(el=>el.oninput=nzSync);$('#nzDice').onclick=()=>{$('#nzSeed').value=Math.floor(Math.random()*9999);$('#nzOn').checked=true;nzSync()};nzSync();
+const nzE=mk(2,2),nzA=mk(2,2),nzB=mk(2,2);
+const hs=(ch,k)=>{let h=Math.imul(k,374761393)+Math.imul(ch+1,668265263)+Math.imul(NZ.seed+1,1274126177)|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return(h>>>0)/4294967295*2-1};
+const nz=(ch,i)=>{const u=i/NZ.sm,k=Math.floor(u),t=u-k,s=t*t*(3-2*t);return hs(ch,k)*(1-s)+hs(ch,k+1)*s};
+function nzLayer(x,i,raster){const w=W,h=H,m=NZ.m/100;[nzA,nzB].forEach(c=>{if(c.width!==w||c.height!==h){c.width=w;c.height=h}});
+const a=nzA.getContext('2d');a.clearRect(0,0,w,h);a.drawImage(raster,0,0);drawExt(a,i);
+const wp=NZ.warp*m;if(wp>0){const b=nzB.getContext('2d'),S=4;b.clearRect(0,0,w,h);const p1=nz(3,i)*6.28,p2=nz(4,i)*6.28,p3=nz(5,i)*6.28,p4=nz(6,i)*6.28;
+for(let y=0;y<h;y+=S)b.drawImage(nzA,0,y,w,S,wp*(Math.sin(y/37+p1)*.6+Math.sin(y/13+p2)*.4),y,w,S);
+a.clearRect(0,0,w,h);for(let xx=0;xx<w;xx+=S)a.drawImage(nzB,xx,0,S,h,xx,wp*(Math.sin(xx/41+p3)*.6+Math.sin(xx/15+p4)*.4),S,h)}
+x.save();x.translate(w/2+nz(0,i)*NZ.pos*m,h/2+nz(1,i)*NZ.pos*m);x.rotate(nz(2,i)*NZ.rot*m*Math.PI/180);const s=1+nz(7,i)*NZ.sc*m/100;x.scale(s,s);x.translate(-w/2,-h/2);x.drawImage(nzA,0,0);x.restore()}
+const _c3=compose;compose=function(x,i,o){const f=frames[i];if(!NZ.on||!f||NZ.m<=0||(inR&&!playing&&!NZ.edit))return _c3.apply(this,arguments);
+const real=f.c;if(nzE.width!==W||nzE.height!==H){nzE.width=W;nzE.height=H}f.c=nzE;noExt=true;try{_c3.apply(this,arguments)}finally{noExt=false;f.c=real}nzLayer(x,i,real)};
+const _r3=render;render=function(){inR=true;try{return _r3.apply(this,arguments)}finally{inR=false}};
 const _r2=resetProject;resetProject=function(){adjEnd0();if(bm){lock(false);bm=null;ui()}return _r2.apply(this,arguments)};
 })();
 </script>
